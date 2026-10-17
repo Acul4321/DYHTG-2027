@@ -2,7 +2,6 @@
 public abstract class Spell{
     public int Damage {get; set;}
     public string Name {get; set;}
-    public string Name {get; set;}
 
     public abstract void SpellCasted();
 
