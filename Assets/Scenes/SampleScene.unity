@@ -577,6 +577,7 @@ MonoBehaviour:
           m_BoolArgument: 0
         m_CallState: 2
 <<<<<<< HEAD
+<<<<<<< HEAD
 --- !u!1 &451820663
 GameObject:
   m_ObjectHideFlags: 0
@@ -1175,6 +1176,8 @@ CanvasRenderer:
   m_CullTransparentMesh: 1
 =======
 >>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
+=======
+>>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
 --- !u!1 &702413256
 GameObject:
   m_ObjectHideFlags: 0
@@ -1362,6 +1365,7 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+<<<<<<< HEAD
 <<<<<<< HEAD
 --- !u!1 &1082482174
 GameObject:
@@ -2231,6 +2235,8 @@ CanvasRenderer:
   m_CullTransparentMesh: 1
 =======
 >>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
+=======
+>>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
 --- !u!1 &1323550131
 GameObject:
   m_ObjectHideFlags: 0
@@ -2380,6 +2386,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
+<<<<<<< HEAD
 <<<<<<< HEAD
   m_Sprite: {fileID: 21300000, guid: c5ef8db4d37ba4c0fb5e17dbb0e044ba, type: 3}
   m_Type: 0
@@ -3322,6 +3329,9 @@ MonoBehaviour:
 =======
   m_Sprite: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}
 >>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
+=======
+  m_Sprite: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}
+>>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
   m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -3378,6 +3388,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3312d7739989d2b4e91e6319e9a96d76, type: 3}
   m_Name: 
+<<<<<<< HEAD
 <<<<<<< HEAD
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
@@ -4696,6 +4707,11 @@ PrefabInstance:
   m_Padding: {x: 0, y: 0, z: 0, w: 0}
   m_Softness: {x: 0, y: 0}
 >>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
+=======
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RectMask2D
+  m_Padding: {x: 0, y: 0, z: 0, w: 0}
+  m_Softness: {x: 0, y: 0}
+>>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -4705,7 +4721,12 @@ SceneRoots:
   - {fileID: 1323550134}
   - {fileID: 331264285}
 <<<<<<< HEAD
+<<<<<<< HEAD
   - {fileID: 2097031921}
+=======
+  - {fileID: 309771147}
+  - {fileID: 181741037}
+>>>>>>> 4a5ac91234bca834edb29e47d8899eb659e5e97c
 =======
   - {fileID: 309771147}
   - {fileID: 181741037}
