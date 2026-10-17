@@ -1,6 +1,6 @@
 # Custom free ArUco player display tracking
 
-Status: approved by the user's "go on" on 2026-10-17. No tracking implementation exists yet.
+Status: approved by the user's "go on" on 2026-10-17 and implemented with editor/synthetic verification. Physical Android/iPhone acceptance remains pending; see docs/aruco-verification-2026-10-17.md.
 
 ## Agreed outcome
 

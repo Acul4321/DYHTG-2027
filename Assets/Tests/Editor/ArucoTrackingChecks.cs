@@ -196,5 +196,64 @@ public static class ArucoTrackingChecks
     }
 
     [MenuItem("Tools/Tests/ArUco Tracking/All")]
-    public static void RunAll(){RunDetector();RunPose();RunCameraGeometry();RunDisplays();RunEndToEnd();Debug.Log("ALL ARUCO TRACKING CHECKS PASSED");}
+    public static void RunAll(){RunDetector();RunPose();RunCameraGeometry();RunDisplays();RunDisplayReferenceChanges();RunEndToEnd();Debug.Log("ALL ARUCO TRACKING CHECKS PASSED");}
+
+    [MenuItem("Tools/Tests/ArUco Tracking/Display Reference Changes")]
+    public static void RunDisplayReferenceChanges()
+    {
+        var cameraObject=new GameObject("Reference change check camera",typeof(Camera));
+        var objects=new GameObject[3];
+        try
+        {
+            for(int i=0;i<objects.Length;i++)
+            {
+                objects[i]=new GameObject("Reference change check "+i,typeof(RectTransform),typeof(Canvas));
+                objects[i].GetComponent<RectTransform>().sizeDelta=new Vector2(200,40);
+                objects[i].GetComponent<Canvas>().renderMode=RenderMode.WorldSpace;
+            }
+            var mapping=new[]{objects[0],objects[1]};
+            var presenter=new ArucoPlayerDisplayPresenter(mapping,cameraObject.GetComponent<Camera>(),0.1f,0.2f,0.35f,12);
+            presenter.Observe(0,new Pose(Vector3.forward,Quaternion.identity),0);
+            presenter.Observe(1,new Pose(new Vector3(1,0,1),Quaternion.identity),0);presenter.Tick(0,0.016f);
+            Check(objects[0].GetComponent<Canvas>().enabled,"reference regression starts visible");
+            mapping[0]=null;
+            presenter.Observe(1,new Pose(new Vector3(2,0,1),Quaternion.identity),0.4f);presenter.Tick(0.4f,0.016f);
+            Check(!objects[0].GetComponent<Canvas>().enabled,"cleared mapping must hide its old cached canvas");
+            Check(objects[1].GetComponent<Canvas>().enabled,"cleared mapping must not stop another marker");
+            mapping[0]=objects[2];presenter.Observe(0,new Pose(new Vector3(3,0,1),Quaternion.identity),0.5f);presenter.Tick(0.5f,0.016f);
+            Check(objects[2].GetComponent<Canvas>().enabled&&!objects[0].GetComponent<Canvas>().enabled,"replacement owns the correct canvas");
+            mapping[0]=objects[0];presenter.Observe(0,new Pose(new Vector3(4,0,1),Quaternion.identity),0.6f);presenter.Tick(0.6f,0.016f);
+            Check(!objects[2].GetComponent<Canvas>().enabled&&objects[0].GetComponent<Canvas>().enabled,"replacement's old canvas is hidden");
+            Check(Mathf.Abs(objects[0].transform.position.x-4)<1e-5f,"replacement snaps instead of using old smoothing history");
+            presenter.Reset();foreach(var item in objects)Check(!item.GetComponent<Canvas>().enabled,"reset after rebinding");
+        }
+        finally{foreach(var item in objects)if(item)UnityEngine.Object.DestroyImmediate(item);UnityEngine.Object.DestroyImmediate(cameraObject);}
+        Debug.Log("DISPLAY REFERENCE CHANGE CHECKS PASSED: clearing/replacing a slot hides its old canvas and isolates other markers.");
+    }
+
+    [MenuItem("Tools/Tests/ArUco Tracking/Marker References")]
+    public static void RunMarkerReferences()
+    {
+        string root=System.IO.Directory.GetParent(Application.dataPath).FullName;
+        for(int id=0;id<4;id++)
+        {
+            var texture=new Texture2D(2,2);
+            try
+            {
+                byte[] png=System.IO.File.ReadAllBytes(System.IO.Path.Combine(root,"docs","aruco-markers","marker-"+id+".png"));
+                Check(texture.LoadImage(png),"reference PNG loads");
+                Check(texture.width==640&&texture.height==640,"reference image dimensions");
+                for(int row=0;row<6;row++)
+                for(int col=0;col<6;col++)
+                {
+                    bool border=row==0||row==5||col==0||col==5;
+                    bool expected=!border&&ArucoTrackingFixtures.Patterns[id][(row-1)*4+col-1]=='1';
+                    Check((texture.GetPixel(80+col*80+40,639-(80+row*80+40)).r>0.5f)==expected,"reference grid ID "+id);
+                }
+                Check(texture.GetPixel(0,0).r>0.9f,"reference white print margin");
+            }
+            finally {UnityEngine.Object.DestroyImmediate(texture);}
+        }
+        Debug.Log("MARKER REFERENCE CHECKS PASSED: four PNG grids match independent standard marker fixtures.");
+    }
 }

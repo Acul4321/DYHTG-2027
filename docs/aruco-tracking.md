@@ -27,7 +27,7 @@ The tracker reads the rear AR camera's luminance plane with its native row/pixel
 
 ## Verification
 
-Run **Tools > Tests > ArUco Tracking > All** for synthetic detector, pose, image geometry, stride, repeated timestamps and display lifecycle checks. Run **Scene Setup** to verify setup idempotence, and **Existing Network** for the existing identity/network checks. The old **Check Aruco Number Selection** check had a pre-existing null LocalPlayer exception in CastingAreaController's spell path before tracking was implemented; this feature does not change that path.
+Run **Tools > Tests > ArUco Tracking > All** for synthetic detector, pose, image geometry, stride, repeated timestamps and display lifecycle checks. **Marker References** validates the generated reference PNG grids. Run **Scene Setup** to verify setup idempotence, and **Existing Network** for the existing identity/network checks. The old **Check Aruco Number Selection** check had a pre-existing null LocalPlayer exception in CastingAreaController's spell path before tracking was implemented; this feature does not change that path. See the [verification record](aruco-verification-2026-10-17.md) for results and pending device checks.
 
 Synthetic tests do not establish real phone camera performance. Physical Android and iPhone checks remain required:
 

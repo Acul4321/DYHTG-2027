@@ -19,17 +19,30 @@ namespace SpellBattle.Tracking
             offset=offsetMetres;width=Mathf.Max(0.01f,widthMetres);timeout=Mathf.Max(0.01f,timeoutSeconds);smoothing=Mathf.Max(0.01f,smoothingRate);
             int count=Mathf.Min(4,this.displays.Length);
             canvases=new Canvas[count];targets=new Vector3[count];lastSeen=new float[count];tracked=new bool[count];
-            for(int i=0;i<count;i++) if(this.displays[i])
+            for(int i=0;i<count;i++) RefreshCanvas(i);
+        }
+
+        Canvas RefreshCanvas(int index)
+        {
+            GameObject display=displays[index];
+            Canvas previous=canvases[index];
+            if(previous && display && previous.gameObject==display) return previous;
+            if(previous) previous.enabled=false;
+            tracked[index]=false;
+            canvases[index]=display?display.GetComponent<Canvas>():null;
+            if(canvases[index])
             {
-                canvases[i]=this.displays[i].GetComponent<Canvas>();
-                if(canvases[i]) {canvases[i].worldCamera=camera;canvases[i].enabled=false;}
+                canvases[index].worldCamera=camera;
+                canvases[index].enabled=false;
             }
+            return canvases[index];
         }
 
         public void Observe(int markerId, Pose worldPose, float now)
         {
-            if(markerId<0||markerId>=tracked.Length||!displays[markerId]||!canvases[markerId]
-                ||!TrackingMath.Finite(worldPose.position)||!TrackingMath.Finite(worldPose.rotation)||!TrackingMath.Finite(now)) return;
+            if(markerId<0||markerId>=tracked.Length||!TrackingMath.Finite(worldPose.position)
+                ||!TrackingMath.Finite(worldPose.rotation)||!TrackingMath.Finite(now)) return;
+            if(!RefreshCanvas(markerId)) return;
             targets[markerId]=worldPose.position+Vector3.up*offset;
             bool reacquired=!tracked[markerId]||now-lastSeen[markerId]>timeout;
             tracked[markerId]=true;lastSeen[markerId]=now;
@@ -40,7 +53,7 @@ namespace SpellBattle.Tracking
         {
             for(int i=0;i<tracked.Length;i++)
             {
-                if(!displays[i]||!canvases[i]) continue;
+                if(!RefreshCanvas(i)) continue;
                 bool visible=camera && tracked[i] && now-lastSeen[i]<=timeout;
                 canvases[i].enabled=visible;
                 if(!visible) {tracked[i]=false;continue;}
@@ -62,7 +75,12 @@ namespace SpellBattle.Tracking
 
         public void Reset()
         {
-            for(int i=0;i<tracked.Length;i++) {tracked[i]=false;lastSeen[i]=float.NegativeInfinity;if(canvases[i])canvases[i].enabled=false;}
+            for(int i=0;i<tracked.Length;i++)
+            {
+                RefreshCanvas(i);
+                tracked[i]=false;lastSeen[i]=float.NegativeInfinity;
+                if(canvases[i])canvases[i].enabled=false;
+            }
         }
     }
 }
