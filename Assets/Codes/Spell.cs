@@ -1,9 +1,8 @@
-namespace MyGame;
 
-public class Spell{
+public abstract class Spell{
     public int Damage {get; set;}
 
-    public void SpellCasted();
+    public abstract void SpellCasted();
 }
 
 public class Fireball : Spell{
@@ -12,24 +11,35 @@ public class Fireball : Spell{
         Damage = 50;
     }
 
-    public void SpellCasted{
+    public override void SpellCasted()
+    {
+        
+    }
+
+    public void AddForce()
+    {
 
     }
 
-    public void AddForce{
-
-    }
-
-    public void Acceleration{
-
+    public void Acceleration()
+    {
+        
     }
 }
 
-public class ShieldSpell : Spell{
-
+public class ShieldSpell : Spell
+{
+    public override void SpellCasted()
+    {
+        
+    }
 }
 
 public class ReflectSpell : Spell{
+    public override void SpellCasted()
+    {
+        
+    }
 
     public ReflectSpell(int Damage){
         this.Damage = Damage/2;

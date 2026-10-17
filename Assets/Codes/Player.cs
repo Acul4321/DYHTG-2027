@@ -1,5 +1,4 @@
 
-namespace MyGame;
 public class Player
 {
     public int hp;

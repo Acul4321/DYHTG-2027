@@ -1,10 +1,11 @@
 using UnityEngine;
-
+using System;
+[Serializable]
 public class NetworkSendObject
 {
-    int message_id;
-    string device_id;
-    string data;
+    public int message_id;
+    public string device_id;
+    public string data;
     public NetworkSendObject(int messageid,string deviceid,string data)
     {
         message_id = messageid;
