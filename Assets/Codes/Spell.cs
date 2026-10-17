@@ -5,18 +5,20 @@ public abstract class Spell{
 
     public abstract void SpellCasted();
 
+
 }
 
 public class Fireball : Spell{
 
-    public Fireball(){
+    public Fireball()
+    {
         Damage = 50;
         Name = "Fireball";
     } 
 
     public override void SpellCasted()
     {
-        
+        // server shit here
     }
 
     public void AddForce()
@@ -32,7 +34,8 @@ public class Fireball : Spell{
 
 public class ShieldSpell : Spell
 {    
-       public ShieldSpell(){
+    public ShieldSpell()
+    {
         Name = "Shield";
     }
     
@@ -44,8 +47,9 @@ public class ShieldSpell : Spell
 
 public class ReflectSpell : Spell{
     
-    public ReflectSpell(int Damage){
-        this.Damage = Damage/2;
+    public ReflectSpell(int damage)
+    {
+        Damage = damage/2;
         Name = "Reflect";
     }
     public override void SpellCasted()
