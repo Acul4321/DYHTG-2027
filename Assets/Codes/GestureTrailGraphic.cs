@@ -7,16 +7,19 @@ public class GestureTrailGraphic : MaskableGraphic
     [SerializeField, Min(1f)] private float lineWidth = 6f;
 
     private readonly List<Vector2> points = new List<Vector2>();
+    private readonly List<bool> strokeStarts = new List<bool>();
 
-    public void AddPoint(Vector2 point)
+    public void AddPoint(Vector2 point, bool startsStroke = false)
     {
         points.Add(point);
+        strokeStarts.Add(startsStroke);
         SetVerticesDirty();
     }
 
     public void Clear()
     {
         points.Clear();
+        strokeStarts.Clear();
         SetVerticesDirty();
     }
 
@@ -28,6 +31,7 @@ public class GestureTrailGraphic : MaskableGraphic
 
         for (int i = 1; i < points.Count; i++)
         {
+            if (strokeStarts[i]) continue;
             Vector2 start = points[i - 1];
             Vector2 end = points[i];
             Vector2 direction = (end - start).normalized;

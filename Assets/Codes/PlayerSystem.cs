@@ -10,25 +10,53 @@ public class PlayerSystem : MonoBehaviour
 {
     private UdpClient udp;
     public static PlayerSystem Instance;
+    // Chosen by drawing 1-4 at startup; 0 means no number has been selected.
+    [NonSerialized] public int aruconum;
     private CancellationTokenSource cts;
     private bool hasSnapshot;
-    private readonly Dictionary<string, Player> playersByDeviceId =
-        new Dictionary<string, Player>(StringComparer.Ordinal);
+    private readonly Dictionary<int, Player> playersByArucoNumber = new Dictionary<int, Player>();
 
     public IReadOnlyList<Player> Players { get; private set; } = Array.Empty<Player>();
-    public Player LocalPlayer => GetPlayer(GetUniqueID());
+    public Player LocalPlayer => GetPlayer(aruconum);
+    public int[] Signature { get; private set; }
+    public bool HasSignature => SignatureData.IsValid(Signature);
 
-    public Player GetPlayer(string machineId)
+    public GameObject[] playerDisplays;
+    public Player GetPlayer(int arucoNumber)
     {
-        TryGetPlayer(machineId, out Player player);
+        TryGetPlayer(arucoNumber, out Player player);
         return player;
     }
 
-    public bool TryGetPlayer(string machineId, out Player player)
+    public bool TryGetPlayer(int arucoNumber, out Player player)
     {
         player = null;
-        return !string.IsNullOrEmpty(machineId)
-            && playersByDeviceId.TryGetValue(machineId, out player);
+        return IsValidArucoNumber(arucoNumber)
+            && playersByArucoNumber.TryGetValue(arucoNumber, out player);
+    }
+
+    public static bool IsValidArucoNumber(int number) => number >= 1 && number <= 4;
+
+    public void SelectArucoNumber(int number)
+    {
+        if (!IsValidArucoNumber(number) || IsValidArucoNumber(aruconum))
+            return;
+        aruconum = number;
+        LastServerError = null;
+        // Start also attempts JOIN if selection happened before socket creation.
+        if (udp != null)
+            _ = SendJoinMessage();
+    }
+
+    public bool SubmitSignature(int[] drawing)
+    {
+        if (!IsValidArucoNumber(aruconum) || !SignatureData.IsValid(drawing))
+            return false;
+        Signature = (int[])drawing.Clone();
+        LastServerError = null;
+        if (udp != null)
+            _ = SendJoinMessage();
+        return true;
     }
 
     public int SnapshotRevision { get; private set; }
@@ -42,11 +70,15 @@ public class PlayerSystem : MonoBehaviour
 
     [SerializeField] private string serverIP = "127.0.0.1";
     [SerializeField] private int serverPort = 7777;
-    [SerializeField] private string playerName = "Alice";
+
+    private void Awake()
+    {
+        Instance = this;
+        UpdatePlayerDisplays();
+    }
 
     async void Start()
     {
-        Instance = this;
         cts = new CancellationTokenSource();
         CancellationToken cancellationToken = cts.Token;
         try
@@ -68,19 +100,15 @@ public class PlayerSystem : MonoBehaviour
 
     private Task SendJoinMessage()
     {
-        string name = playerName?.Trim();
-        if (string.IsNullOrEmpty(name) || name.Length > 32)
-        {
-            Debug.LogWarning("Player name must contain between 1 and 32 characters");
+        if (!IsValidArucoNumber(aruconum) || !HasSignature || udp == null)
             return Task.CompletedTask;
-        }
 
-        Debug.Log($"[UDP] Sending JOIN to {serverIP}:{serverPort}. Name: {name}; device: {GetUniqueID()}. Waiting for snapshot (101).");
+        Debug.Log($"[UDP] Sending JOIN with signature to {serverIP}:{serverPort}; aruconum: {aruconum}. Waiting for snapshot (101).");
         return SendMessageAsync(new JoinMessage
         {
             message_id = 1,
-            device_id = GetUniqueID(),
-            name = name
+            aruconum = aruconum,
+            signature = Signature
         });
     }
 
@@ -92,17 +120,19 @@ public class PlayerSystem : MonoBehaviour
             {
                 await Task.Delay(TimeSpan.FromSeconds(HeartbeatInterval), cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
+                if (!IsValidArucoNumber(aruconum) || !HasSignature)
+                    continue;
                 if (hasSnapshot)
                 {
                     await SendMessageAsync(new LobbyRequestMessage
                     {
                         message_id = 2,
-                        device_id = GetUniqueID()
+                        aruconum = aruconum
                     });
                 }
                 else
                 {
-                    // Retry a lost JOIN or rejoin after the server expires this device.
+                    // Retry a lost JOIN or rejoin after the server expires this number.
                     await SendJoinMessage();
                 }
             }
@@ -189,7 +219,7 @@ public class PlayerSystem : MonoBehaviour
                 break;
             case 1001:
                 NetworkHandle.HandleCastSpellMessage(
-                    new NetworkSendObject(message.message_id, message.device_id, message.data));
+                    new NetworkSendObject(message.message_id, message.aruconum, message.data));
                 break;
             default:
                 Debug.LogWarning($"Unknown network message ID: {message.message_id}");
@@ -199,7 +229,9 @@ public class PlayerSystem : MonoBehaviour
 
     private void HandleSnapshotMessage(SnapshotMessage snapshot)
     {
-        if (snapshot == null || snapshot.players == null)
+        if (!IsValidArucoNumber(aruconum) || snapshot == null || snapshot.aruconum != aruconum)
+            return;
+        if (snapshot.players == null)
         {
             Debug.LogWarning("Snapshot is missing its player list");
             return;
@@ -208,18 +240,21 @@ public class PlayerSystem : MonoBehaviour
         if (hasSnapshot && snapshot.revision < SnapshotRevision)
             return;
 
-        var deviceIds = new HashSet<string>();
+        var arucoNumbers = new HashSet<int>();
         foreach (Player player in snapshot.players)
         {
-            if (!IsValidPlayer(player) || !deviceIds.Add(player.device_id))
+            if (!IsValidPlayer(player) || !arucoNumbers.Add(player.aruconum))
             {
                 Debug.LogWarning("Snapshot contains an invalid player");
                 return;
             }
         }
 
+        if (!arucoNumbers.Contains(aruconum))
+            return;
+
         bool joinConfirmed = !hasSnapshot && udp != null
-            && snapshot.device_id == GetUniqueID();
+            && snapshot.aruconum == aruconum;
         Players = Array.AsReadOnly(snapshot.players);
         SnapshotRevision = snapshot.revision;
         hasSnapshot = true;
@@ -227,14 +262,14 @@ public class PlayerSystem : MonoBehaviour
         if (snapshot.heartbeat_interval > 0)
             HeartbeatInterval = snapshot.heartbeat_interval;
         if (joinConfirmed)
-            Debug.Log($"[UDP] Network On — server {serverIP}:{serverPort} confirmed JOIN. Local: {udp.Client.LocalEndPoint}; device: {snapshot.device_id}; players: {Players.Count}; revision: {SnapshotRevision}; heartbeat: every {HeartbeatInterval}s.");
+            Debug.Log($"[UDP] Network On — server {serverIP}:{serverPort} confirmed JOIN. Local: {udp.Client.LocalEndPoint}; aruconum: {snapshot.aruconum}; players: {Players.Count}; revision: {SnapshotRevision}; heartbeat: every {HeartbeatInterval}s.");
         NotifyPlayersChanged();
     }
 
     private static bool IsValidPlayer(Player player)
     {
-        return player != null && !string.IsNullOrWhiteSpace(player.device_id)
-            && !string.IsNullOrWhiteSpace(player.name);
+        return player != null && IsValidArucoNumber(player.aruconum)
+            && SignatureData.IsValid(player.signature);
     }
 
     private bool CanApplyDelta(int revision)
@@ -255,7 +290,7 @@ public class PlayerSystem : MonoBehaviour
             return;
         var players = new List<Player>(Players);
         if (!IsValidPlayer(message.player)
-            || players.Exists(player => player.device_id == message.player.device_id))
+            || players.Exists(player => player.aruconum == message.player.aruconum))
         {
             Debug.LogWarning("Invalid added player message; requesting snapshot");
             RequestSnapshot();
@@ -271,14 +306,14 @@ public class PlayerSystem : MonoBehaviour
             return;
         var players = new List<Player>(Players);
         int index = IsValidPlayer(message.player)
-            ? players.FindIndex(player => player.device_id == message.player.device_id) : -1;
+            ? players.FindIndex(player => player.aruconum == message.player.aruconum) : -1;
         if (index < 0)
         {
             Debug.LogWarning("Invalid updated player message; requesting snapshot");
             RequestSnapshot();
             return;
         }
-        players[index].name = message.player.name;
+        players[index] = message.player;
         ApplyPlayers(players, message.revision);
     }
 
@@ -287,8 +322,8 @@ public class PlayerSystem : MonoBehaviour
         if (!CanApplyDelta(message.revision))
             return;
         var players = new List<Player>(Players);
-        if (string.IsNullOrWhiteSpace(message.device_id)
-            || players.RemoveAll(player => player.device_id == message.device_id) == 0)
+        if (!IsValidArucoNumber(message.aruconum)
+            || players.RemoveAll(player => player.aruconum == message.aruconum) == 0)
         {
             Debug.LogWarning("Invalid removed player message; requesting snapshot");
             RequestSnapshot();
@@ -306,19 +341,35 @@ public class PlayerSystem : MonoBehaviour
 
     private void NotifyPlayersChanged()
     {
-        playersByDeviceId.Clear();
+        playersByArucoNumber.Clear();
         foreach (Player player in Players)
-            playersByDeviceId.Add(player.device_id, player);
+            playersByArucoNumber.Add(player.aruconum, player);
 
         var message = new StringBuilder($"Player list updated (revision {SnapshotRevision}, {Players.Count} players):");
         foreach (Player player in Players)
-            message.AppendLine().Append($"- {player.name} (device_id: {player.device_id})");
+            message.AppendLine().Append($"- Player {player.aruconum}, HP {player.hp}, signature {player.signature.Length / 3} points");
         Debug.Log(message.ToString());
+        UpdatePlayerDisplays();
         PlayersChanged?.Invoke();
+    }
+
+    private void UpdatePlayerDisplays()
+    {
+        if (playerDisplays == null) return;
+        for (int i = 0; i < Mathf.Min(4, playerDisplays.Length); i++)
+        {
+            GameObject display = playerDisplays[i];
+            if (display == null) continue;
+            PlayerDisplayView view = display.GetComponent<PlayerDisplayView>();
+            if (view == null) view = display.AddComponent<PlayerDisplayView>();
+            view.SetPlayer(GetPlayer(i + 1));
+        }
     }
 
     private void HandleHeartbeatAckMessage(LobbyServerMessage message)
     {
+        if (!IsValidArucoNumber(aruconum) || message.aruconum != aruconum)
+            return;
         LastHeartbeatAckUtc = DateTime.UtcNow;
         if (!hasSnapshot || NeedsSnapshot || message.revision > SnapshotRevision)
             RequestSnapshot(retry: true);
@@ -326,12 +377,29 @@ public class PlayerSystem : MonoBehaviour
 
     private void HandleServerErrorMessage(LobbyServerMessage message)
     {
+        if (!IsValidArucoNumber(aruconum) || message.aruconum != aruconum)
+            return;
         if (string.IsNullOrWhiteSpace(message.code))
         {
             Debug.LogWarning("Server error message is missing its code");
             return;
         }
         LastServerError = message.code;
+        if (message.code == "invalid_signature")
+        {
+            Signature = null;
+            hasSnapshot = false;
+            NeedsSnapshot = false;
+        }
+        if (message.code == "aruconum_in_use")
+        {
+            aruconum = 0;
+            hasSnapshot = false;
+            NeedsSnapshot = false;
+            SnapshotRevision = 0;
+            Players = Array.Empty<Player>();
+            NotifyPlayersChanged();
+        }
         if (message.code == "unknown_player")
         {
             // The heartbeat loop will JOIN again before sending more heartbeats.
@@ -360,13 +428,10 @@ public class PlayerSystem : MonoBehaviour
             Instance = null;
     }
 
-    public string GetUniqueID()
-    {
-        return SystemInfo.deviceUniqueIdentifier;
-    }
-
     public async void SendNetworkMessage(int message_id, string datas)
     {
+        if (!IsValidArucoNumber(aruconum) || !HasSignature)
+            return;
         if (udp == null)
         {
             Debug.LogWarning("[UDP] Cannot send a message because the socket is not ready.");
@@ -374,13 +439,13 @@ public class PlayerSystem : MonoBehaviour
         }
 
         Debug.Log($"[UDP] Sending message {message_id} with data '{datas}' to {serverIP}:{serverPort}.");
-        var message = new NetworkSendObject(message_id, GetUniqueID(), datas);
+        var message = new NetworkSendObject(message_id, aruconum, datas);
         await SendMessageAsync(message);
     }
 
     private async Task SendMessageAsync(object message)
     {
-        string json = JsonUtility.ToJson(message, true);
+        string json = JsonUtility.ToJson(message);
         byte[] bytes = Encoding.UTF8.GetBytes(json);
         try
         {

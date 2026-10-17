@@ -4,12 +4,12 @@ using System;
 public class NetworkSendObject
 {
     public int message_id;
-    public string device_id;
+    public int aruconum;
     public string data;
-    public NetworkSendObject(int messageid,string deviceid,string data)
+    public NetworkSendObject(int messageid,int arucoNumber,string data)
     {
         message_id = messageid;
-        device_id = deviceid;
+        this.aruconum = arucoNumber;
         this.data = data;
     }
 }
@@ -19,7 +19,7 @@ public class SnapshotMessage
 {
     public int message_id;
     public int revision;
-    public string device_id;
+    public int aruconum;
     public Player[] players;
     public int heartbeat_interval;
 }
@@ -36,11 +36,11 @@ public class LobbyServerMessage : SnapshotMessage
 public class LobbyRequestMessage
 {
     public int message_id;
-    public string device_id;
+    public int aruconum;
 }
 
 [Serializable]
 public class JoinMessage : LobbyRequestMessage
 {
-    public string name;
+    public int[] signature;
 }

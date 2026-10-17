@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Gesture Name="1">
+  <Stroke>
+    <Point X="50" Y="0" />
+    <Point X="50" Y="10" />
+    <Point X="50" Y="20" />
+    <Point X="50" Y="30" />
+    <Point X="50" Y="40" />
+    <Point X="50" Y="50" />
+    <Point X="50" Y="60" />
+    <Point X="50" Y="70" />
+    <Point X="50" Y="80" />
+    <Point X="50" Y="90" />
+    <Point X="50" Y="100" />
+  </Stroke>
+</Gesture>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Gesture Name="4">
+  <Stroke>
+    <Point X="20" Y="0" />
+    <Point X="19" Y="6" />
+    <Point X="18" Y="12" />
+    <Point X="17" Y="18" />
+    <Point X="16" Y="24" />
+    <Point X="15" Y="30" />
+    <Point X="14" Y="36" />
+    <Point X="13" Y="42" />
+    <Point X="12" Y="48" />
+    <Point X="11" Y="54" />
+    <Point X="10" Y="60" />
+    <Point X="18" Y="60" />
+    <Point X="26" Y="60" />
+    <Point X="34" Y="60" />
+    <Point X="42" Y="60" />
+    <Point X="50" Y="60" />
+    <Point X="58" Y="60" />
+    <Point X="66" Y="60" />
+    <Point X="74" Y="60" />
+    <Point X="82" Y="60" />
+    <Point X="90" Y="60" />
+  </Stroke>
+  <Stroke>
+    <Point X="70" Y="0" />
+    <Point X="70" Y="10" />
+    <Point X="70" Y="20" />
+    <Point X="70" Y="30" />
+    <Point X="70" Y="40" />
+    <Point X="70" Y="50" />
+    <Point X="70" Y="60" />
+    <Point X="70" Y="70" />
+    <Point X="70" Y="80" />
+    <Point X="70" Y="90" />
+    <Point X="70" Y="100" />
+  </Stroke>
+</Gesture>

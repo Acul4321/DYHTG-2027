@@ -33,7 +33,6 @@ namespace SpellBattle.Tracking
             if(canvases[index])
             {
                 canvases[index].worldCamera=camera;
-                canvases[index].enabled=false;
             }
             return canvases[index];
         }
@@ -55,7 +54,7 @@ namespace SpellBattle.Tracking
             {
                 if(!RefreshCanvas(i)) continue;
                 bool visible=camera && tracked[i] && now-lastSeen[i]<=timeout;
-                canvases[i].enabled=visible;
+                //canvases[i].enabled=visible;
                 if(!visible) {tracked[i]=false;continue;}
                 Transform transform=displays[i].transform;
                 transform.position=Vector3.Lerp(transform.position,targets[i],1-Mathf.Exp(-smoothing*Mathf.Max(0,deltaTime)));
@@ -67,7 +66,7 @@ namespace SpellBattle.Tracking
                 {
                     Vector3 parentScale=transform.parent?transform.parent.lossyScale:Vector3.one;
                     if(Mathf.Abs(parentScale.x-parentScale.y)>0.001f||Mathf.Abs(parentScale.x-parentScale.z)>0.001f
-                        ||parentScale.x<=0) {canvases[i].enabled=false;tracked[i]=false;continue;}
+                        ||parentScale.x<=0) {tracked[i]=false;continue;}
                     transform.localScale=Vector3.one*(width/rect.rect.width/parentScale.x);
                 }
             }
@@ -79,7 +78,6 @@ namespace SpellBattle.Tracking
             {
                 RefreshCanvas(i);
                 tracked[i]=false;lastSeen[i]=float.NegativeInfinity;
-                if(canvases[i])canvases[i].enabled=false;
             }
         }
     }
