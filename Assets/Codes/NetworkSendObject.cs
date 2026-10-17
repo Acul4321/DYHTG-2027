@@ -13,3 +13,13 @@ public class NetworkSendObject
         this.data = data;
     }
 }
+
+[Serializable]
+public class SnapshotMessage
+{
+    public int message_id;
+    public int revision;
+    public string device_id;
+    public Player[] players;
+    public int heartbeat_interval;
+}

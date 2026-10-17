@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -10,6 +11,9 @@ public class PlayerSystem : MonoBehaviour
     private UdpClient udp;
     public static PlayerSystem Instance;
     private CancellationTokenSource cts;
+
+    public IReadOnlyList<Player> Players { get; private set; } = Array.Empty<Player>();
+    public int SnapshotRevision { get; private set; }
 
     [SerializeField] private string serverIP = "127.0.0.1";
     [SerializeField] private int serverPort = 7777;
@@ -81,8 +85,11 @@ public class PlayerSystem : MonoBehaviour
 
         switch (message.message_id)
         {
+            case 101:
+                HandleSnapshotMessage(json);
+                break;
             case 1001:
-                HandleCastSpellMessage(message);
+                NetworkHandle.HandleCastSpellMessage(message);
                 break;
             default:
                 Debug.LogWarning($"Unknown network message ID: {message.message_id}");
@@ -90,11 +97,38 @@ public class PlayerSystem : MonoBehaviour
         }
     }
 
-    protected virtual void HandleCastSpellMessage(NetworkSendObject message)
+    private void HandleSnapshotMessage(string json)
     {
-        Debug.Log($"Spell message from {message.device_id}: {message.data}");
-    }
+        SnapshotMessage snapshot;
+        try
+        {
+            snapshot = JsonUtility.FromJson<SnapshotMessage>(json);
+        }
+        catch (ArgumentException exception)
+        {
+            Debug.LogWarning($"Invalid snapshot: {exception.Message}");
+            return;
+        }
 
+        if (snapshot == null || snapshot.players == null)
+        {
+            Debug.LogWarning("Snapshot is missing its player list");
+            return;
+        }
+
+        foreach (Player player in snapshot.players)
+        {
+            if (player == null || string.IsNullOrWhiteSpace(player.device_id)
+                || string.IsNullOrWhiteSpace(player.name))
+            {
+                Debug.LogWarning("Snapshot contains an invalid player");
+                return;
+            }
+        }
+
+        Players = Array.AsReadOnly(snapshot.players);
+        SnapshotRevision = snapshot.revision;
+    }
     void OnDestroy()
     {
         cts?.Cancel();
