@@ -23,3 +23,24 @@ public class SnapshotMessage
     public Player[] players;
     public int heartbeat_interval;
 }
+
+[Serializable]
+public class LobbyServerMessage : SnapshotMessage
+{
+    public Player player;
+    public string code;
+    public string data;
+}
+
+[Serializable]
+public class LobbyRequestMessage
+{
+    public int message_id;
+    public string device_id;
+}
+
+[Serializable]
+public class JoinMessage : LobbyRequestMessage
+{
+    public string name;
+}
