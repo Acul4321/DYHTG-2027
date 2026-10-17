@@ -20,6 +20,9 @@ public class PlayerSystem : MonoBehaviour
 
     async void Start()
     {
+        //udp = new UdpClient();
+        //udp.Connect(serverIP,7777);
+        
         Instance = this;
         cts = new CancellationTokenSource();
         udp = new UdpClient();
