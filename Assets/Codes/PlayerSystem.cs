@@ -12,8 +12,25 @@ public class PlayerSystem : MonoBehaviour
     public static PlayerSystem Instance;
     private CancellationTokenSource cts;
     private bool hasSnapshot;
+    private readonly Dictionary<string, Player> playersByDeviceId =
+        new Dictionary<string, Player>(StringComparer.Ordinal);
 
     public IReadOnlyList<Player> Players { get; private set; } = Array.Empty<Player>();
+    public Player LocalPlayer => GetPlayer(GetUniqueID());
+
+    public Player GetPlayer(string machineId)
+    {
+        TryGetPlayer(machineId, out Player player);
+        return player;
+    }
+
+    public bool TryGetPlayer(string machineId, out Player player)
+    {
+        player = null;
+        return !string.IsNullOrEmpty(machineId)
+            && playersByDeviceId.TryGetValue(machineId, out player);
+    }
+
     public int SnapshotRevision { get; private set; }
     public bool NeedsSnapshot { get; private set; }
     public int HeartbeatInterval { get; private set; } = 5;
@@ -289,6 +306,10 @@ public class PlayerSystem : MonoBehaviour
 
     private void NotifyPlayersChanged()
     {
+        playersByDeviceId.Clear();
+        foreach (Player player in Players)
+            playersByDeviceId.Add(player.device_id, player);
+
         var message = new StringBuilder($"Player list updated (revision {SnapshotRevision}, {Players.Count} players):");
         foreach (Player player in Players)
             message.AppendLine().Append($"- {player.name} (device_id: {player.device_id})");
