@@ -18,8 +18,10 @@ public class PlayerNetwork : MonoBehaviour
     {
         SendCastSpell = 1001,
     }
+
+
     void SendCastSpell(Spell spell)
     {
-        PlayerSystem.Instance.SendNetworkMessage(1001, "hi");
+        PlayerSystem.Instance.SendNetworkMessage((int)message.SendCastSpell, spell.Name);
     }
 }
