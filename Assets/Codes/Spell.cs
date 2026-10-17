@@ -68,9 +68,10 @@ public class ShieldSpell : Spell
 public class ReflectSpell : Spell
 {
 
-    public ReflectSpell()
+    public ReflectSpell(int damage)
     {
         Name = "Reflect";
+        Damage = damage;
     }
     public override void SpellCasted()
     {
