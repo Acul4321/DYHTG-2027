@@ -178,9 +178,41 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
         {
             statusText.text = $"{result.GestureClass} ({result.Score:P0})";
             onGestureRecognized.Invoke(result.GestureClass, result.Score);
+            RunSpell(result.GestureClass);
         }
 
         hasRecognized = true;
+    }
+
+    private void RunSpell(string spell)
+    {
+        var Player = PlayerSystem.Instance.LocalPlayer;
+        Spell spellToCast = null;
+        switch (spell.ToLower())
+        {
+            case "fireball":
+            spellToCast = new Fireball();
+            break;
+
+            case "shield":
+            spellToCast = new ShieldSpell();
+            break;
+
+            case "reflect":
+            spellToCast = new ReflectSpell(25); // default dmg value for reflect
+            break;
+
+            default:
+            spellToCast = null;
+            break;
+        }
+
+        if (spellToCast != null && PlayerSystem.Instance != null)
+        {
+            string jsonPayload = JsonUtility.ToJson(spellToCast);
+            PlayerSystem.Instance.SendNetworkMessage(1001, jsonPayload);
+            Player.CastSpell(spellToCast);
+        }
     }
 
     private static float PathLength(List<Point> gesturePoints)
