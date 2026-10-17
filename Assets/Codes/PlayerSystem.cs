@@ -10,7 +10,6 @@ public class PlayerSystem : MonoBehaviour
     {
         //udp = new UdpClient();
         //udp.Connect(serverIP,7777);
-        
         Instance = this;
     }
     public string GetUniqueID()
