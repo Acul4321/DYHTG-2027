@@ -367,6 +367,13 @@ public class PlayerSystem : MonoBehaviour
 
     public async void SendNetworkMessage(int message_id, string datas)
     {
+        if (udp == null)
+        {
+            Debug.LogWarning("[UDP] Cannot send a message because the socket is not ready.");
+            return;
+        }
+
+        Debug.Log($"[UDP] Sending message {message_id} with data '{datas}' to {serverIP}:{serverPort}.");
         var message = new NetworkSendObject(message_id, GetUniqueID(), datas);
         await SendMessageAsync(message);
     }
@@ -378,6 +385,7 @@ public class PlayerSystem : MonoBehaviour
         try
         {
             await udp.SendAsync(bytes, bytes.Length);
+            Debug.Log($"[UDP] Sent datagram ({bytes.Length} bytes) to {serverIP}:{serverPort}.");
         }
         catch (ObjectDisposedException)
         {
@@ -387,6 +395,5 @@ public class PlayerSystem : MonoBehaviour
         {
             Debug.LogWarning($"[UDP] Send failed to {serverIP}:{serverPort} ({exception.SocketErrorCode}): {exception.Message}");
         }
-        Debug.Log("Send message" + message);
     }
 }

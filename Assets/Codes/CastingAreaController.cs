@@ -82,10 +82,14 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
     {
         TextAsset[] gestureFiles = Resources.LoadAll<TextAsset>("GestureSet/10-stylus-MEDIUM");
         foreach (TextAsset gestureFile in gestureFiles)
-            trainingSet.Add(GestureIO.ReadGestureFromXML(gestureFile.text));
+        {
+            Gesture gesture = GestureIO.ReadGestureFromXML(gestureFile.text);
+            if (TryGetSpellName(gesture.Name, out _))
+                trainingSet.Add(gesture);
+        }
 
         if (trainingSet.Count == 0)
-            Debug.LogError("No PDollar training gestures were found in Resources/GestureSet/10-stylus-MEDIUM.", this);
+            Debug.LogError("No supported spell gesture templates were found in Resources/GestureSet/10-stylus-MEDIUM.", this);
     }
 
     private void CreateDrawingSurface()
@@ -169,18 +173,50 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
 
         Result result = PointCloudRecognizer.Classify(
             new Gesture(points.ToArray()), trainingSet.ToArray());
+        Debug.Log($"[Spell] PDollar result: '{result.GestureClass}', confidence {result.Score:P0}.", this);
 
-        if (result.GestureClass == "No match" || result.Score < minimumConfidence)
+        if (result.GestureClass == "No match"
+            || result.Score < minimumConfidence
+            || !TryGetSpellName(result.GestureClass, out string spellName))
         {
             statusText.text = $"Unrecognized gesture ({result.Score:P0})";
         }
         else
         {
-            statusText.text = $"{result.GestureClass} ({result.Score:P0})";
+            statusText.text = $"{spellName} ({result.Score:P0})";
+            Debug.Log($"[Spell] Recognized '{result.GestureClass}' as {spellName}; sending message 1001.", this);
             onGestureRecognized.Invoke(result.GestureClass, result.Score);
+
+            if (PlayerSystem.Instance == null)
+            {
+                Debug.LogWarning("Recognized a spell gesture, but PlayerSystem is not available to send it.", this);
+            }
+            else
+            {
+                PlayerSystem.Instance.SendNetworkMessage(1001, spellName);
+            }
         }
 
         hasRecognized = true;
+    }
+
+    private static bool TryGetSpellName(string gestureName, out string spellName)
+    {
+        switch (gestureName?.Trim().Replace('_', ' ').ToLowerInvariant())
+        {
+            case "five point star":
+                spellName = "Fireball";
+                return true;
+            case "null":
+                spellName = "Shield";
+                return true;
+            case "arrowhead":
+                spellName = "Reflect";
+                return true;
+            default:
+                spellName = null;
+                return false;
+        }
     }
 
     private static float PathLength(List<Point> gesturePoints)
