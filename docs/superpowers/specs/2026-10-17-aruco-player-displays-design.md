@@ -1,6 +1,6 @@
 # Custom free ArUco player display tracking
 
-Status: proposed written design, awaiting user review. No tracking implementation exists yet.
+Status: approved by the user's "go on" on 2026-10-17. No tracking implementation exists yet.
 
 ## Agreed outcome
 
