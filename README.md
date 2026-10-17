@@ -1,0 +1,1 @@
+UofG GUTS hackathon 2027
