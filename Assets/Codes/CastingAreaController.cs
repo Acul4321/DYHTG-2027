@@ -194,6 +194,7 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
             else
             {
                 PlayerSystem.Instance.SendNetworkMessage(1001, spellName);
+                RunSpell(spellName);
             }
         }
 
@@ -216,6 +217,41 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
             default:
                 spellName = null;
                 return false;
+        }
+    }
+
+    private void RunSpell(string spell)
+    {
+        var player = PlayerSystem.Instance?.LocalPlayer;
+        if (player == null)
+        {
+            Debug.LogWarning("Recognized a spell gesture, but the local player is not available to cast it.", this);
+            return;
+        }
+
+        Spell spellToCast = null;
+        switch (spell.ToLower())
+        {
+            case "fireball":
+            spellToCast = new Fireball();
+            break;
+
+            case "shield":
+            spellToCast = new ShieldSpell();
+            break;
+
+            case "reflect":
+            spellToCast = new ReflectSpell(25); // default dmg value for reflect
+            break;
+
+            default:
+            spellToCast = null;
+            break;
+        }
+
+        if (spellToCast != null)
+        {
+            player.CastSpell(spellToCast);
         }
     }
 
