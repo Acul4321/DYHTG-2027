@@ -7985,8 +7985,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20ba8712a81fb314a96dc72719cf2769, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSystem
-  serverIP: 
-  serverPort: 7777
+  serverIP: practically-hardly.tun.ply.gg
+  serverPort: 54751
+  playerName: Alice
 --- !u!1 &2099970465
 GameObject:
   m_ObjectHideFlags: 0
