@@ -13,7 +13,7 @@ public class Fireball : Spell{
     }
 
     public void SpellCasted{
-        
+
     }
 
     public void AddForce{
@@ -25,7 +25,8 @@ public class Fireball : Spell{
     }
 }
 
-publlic class ShieldSpell : Spell{
+public class ShieldSpell : Spell{
+
 }
 
 public class ReflectSpell : Spell{
