@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "DYHTG-2027.slnx"
+    "dotnet.defaultSolution": "SpellBattle.slnx"
 }
