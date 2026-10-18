@@ -6,11 +6,13 @@ public class NetworkSendObject
     public int message_id;
     public int aruconum;
     public string data;
-    public NetworkSendObject(int messageid,int arucoNumber,string data)
+    public int target;
+    public NetworkSendObject(int messageid,int arucoNumber,string data, int target = 0)
     {
         message_id = messageid;
         this.aruconum = arucoNumber;
         this.data = data;
+        this.target = target;
     }
 }
 
@@ -27,9 +29,11 @@ public class SnapshotMessage
 [Serializable]
 public class LobbyServerMessage : SnapshotMessage
 {
+    public int hp;
     public Player player;
     public string code;
     public string data;
+    public int target;
 }
 
 [Serializable]

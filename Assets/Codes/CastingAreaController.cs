@@ -13,7 +13,7 @@ public class GestureRecognizedEvent : UnityEngine.Events.UnityEvent<string, floa
 public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
 {
     [SerializeField] private float recognitionDelay = 0.55f;
-    [SerializeField, Range(0f, 1f)] private float minimumConfidence = 0.5f;
+    [SerializeField, Range(0f, 1f)] private float minimumConfidence = 0.8f;
     [SerializeField, Min(1f)] private float minimumNumberPathLength = 30f;
     [SerializeField] private GestureRecognizedEvent onGestureRecognized = new GestureRecognizedEvent();
 
@@ -301,6 +301,7 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
             statusText.text = selectingNumber
                 ? "Draw a longer number: 1, 2, 3, or 4"
                 : "Draw a longer gesture";
+            ClearGesture();
             hasRecognized = true;
             yield break;
         }
@@ -308,12 +309,14 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
         if (activeTrainingSet.Count == 0)
         {
             statusText.text = "No gesture templates loaded";
+            ClearGesture();
             hasRecognized = true;
             yield break;
         }
 
         Result result = PointCloudRecognizer.Classify(
             new Gesture(points.ToArray()), activeTrainingSet.ToArray());
+        ClearGesture();
 
         if (selectingNumber)
         {
@@ -329,7 +332,6 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
             else
             {
                 PlayerSystem.Instance.SelectArucoNumber(number);
-                ClearGesture();
                 UpdateSignatureControls();
                 statusText.text = DrawingPrompt;
                 Debug.Log($"[Gesture] Selected aruconum {number}, confidence {result.Score:P0}.", this);
@@ -343,9 +345,11 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
 
         if (result.GestureClass == "No match"
             || result.Score < minimumConfidence
+            || float.IsNaN(result.Score)
             || !TryGetSpellName(result.GestureClass, out string spellName))
         {
             statusText.text = $"Unrecognized gesture ({result.Score:P0})";
+            if (PlayerSystem.Instance) PlayerSystem.Instance.ShowCastStatus("Fails");
         }
         else
         {
@@ -359,9 +363,10 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
             }
             else
             {
-                PlayerSystem.Instance.SendNetworkMessage(1001, spellName);
-                PlayerSystem.Instance.LocalPlayer?.RunSpell(spellName);
-
+                if (!PlayerSystem.Instance.TryCastSpell(spellName))
+                    statusText.text = spellName == "Fireball" && PlayerSystem.Instance.TargetArucoNumber == 0
+                        ? "Face another player's marker to target Fireball"
+                        : "Waiting for player connection";
             }
         }
 

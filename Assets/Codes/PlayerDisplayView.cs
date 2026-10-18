@@ -6,6 +6,21 @@ public class PlayerDisplayView : MonoBehaviour
     private TMP_Text idLabel;
     private TMP_Text hpLabel;
     private SignatureGraphic signatureGraphic;
+    private TMP_Text targetIndicator;
+    public GameObject targetIndicatorPrefab;
+
+    public void SetTargeted(bool targeted)
+    {
+        if (targetIndicator == null)
+        {
+            if (!targetIndicatorPrefab) return;
+            var indicator = Instantiate(targetIndicatorPrefab, transform, false);
+            indicator.name = "TargetIndicator";
+            targetIndicator = indicator.GetComponent<TMP_Text>();
+            if (!targetIndicator) return;
+        }
+        targetIndicator.gameObject.SetActive(targeted);
+    }
 
     public void SetPlayer(Player player)
     {

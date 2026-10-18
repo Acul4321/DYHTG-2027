@@ -5,11 +5,251 @@ import sys
 import threading
 import time
 import unittest
+from unittest.mock import patch
+from server import LobbyServer
 from pathlib import Path
 
 
 def signature(label='Alice'):
     return [0, 0, 0, 255, sum(map(ord, label)) % 200 + 1, 0]
+
+
+class FireballImpactTests(unittest.TestCase):
+    def setUp(self):
+        class Transport:
+            def __init__(self):
+                self.packets = []
+
+            def sendto(self, payload, destination):
+                self.packets.append((json.loads(payload), destination))
+
+        self.transport = Transport()
+        self.server = LobbyServer(self.transport, timeout=15)
+        self.clock = patch('server.time.monotonic', return_value=100)
+        self.now = self.clock.start()
+        self.addCleanup(self.clock.stop)
+        self.a, self.b = ('127.0.0.1', 10001), ('127.0.0.1', 10002)
+        self.server.receive_join({'aruconum': 1, 'signature': signature('Alice')}, self.a)
+        self.server.receive_join({'aruconum': 2, 'signature': signature('Bob')}, self.b)
+        self.transport.packets.clear()
+
+    def cast(self):
+        self.server.receive_cast_spell({'aruconum': 1, 'data': 'Fireball', 'target': 2}, self.a)
+
+    def defend(self, spell, number=2, address=None):
+        self.server.receive_cast_spell({'aruconum': number, 'data': spell},
+                                       address or (self.b if number == 2 else self.a))
+
+    def test_shield_blocks_all_currently_incoming_fireballs(self):
+        self.cast()
+        self.cast()
+        self.now.return_value = 101
+        self.defend('Shield')
+        revision = self.server.revision
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 100)
+        self.assertEqual(self.server.revision, revision)
+
+    def test_defense_does_not_protect_against_future_casts(self):
+        for spell in ('Shield', 'Reflect'):
+            with self.subTest(spell=spell):
+                self.server.players[2]['hp'] = 100
+                self.defend(spell)
+                self.cast()
+                self.now.return_value += 2
+                self.server.resolve_fireballs()
+                self.assertEqual(self.server.players[2]['hp'], 50)
+
+    def test_shield_only_covers_fireballs_that_existed_when_cast(self):
+        self.cast()
+        self.now.return_value = 100.5
+        self.defend('Shield')
+        self.now.return_value = 101
+        self.cast()
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 100)
+        self.now.return_value = 103
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 50)
+
+    def test_reflect_halves_damage_and_returns_a_two_second_fireball(self):
+        self.cast()
+        self.now.return_value = 101
+        self.defend('Reflect')
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 75)
+        self.assertEqual(self.server.players[1]['hp'], 100)
+        returned = [p for p, _ in self.transport.packets
+                    if p['message_id'] == 1001 and p['data'] == 'Fireball' and p.get('target') == 1]
+        self.assertEqual(returned, [{'message_id': 1001, 'type': 'cast_spell',
+                                    'aruconum': 2, 'data': 'Fireball', 'target': 1}] * 2)
+        self.now.return_value = 103.999
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[1]['hp'], 100)
+        self.now.return_value = 104
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[1]['hp'], 75)
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[1]['hp'], 75)
+
+    def test_shield_can_block_a_reflected_fireball(self):
+        self.cast()
+        self.now.return_value = 101
+        self.defend('Reflect')
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.now.return_value = 103
+        self.defend('Shield', number=1)
+        self.now.return_value = 104
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[1]['hp'], 100)
+        self.assertEqual(self.server.players[2]['hp'], 75)
+
+    def test_reflected_fireball_can_be_reflected_again_without_gaining_damage(self):
+        self.cast()
+        self.now.return_value = 101
+        self.defend('Reflect')
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.now.return_value = 103
+        self.defend('Reflect', number=1)
+        self.now.return_value = 104
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[1]['hp'], 87)
+        self.now.return_value = 106
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 63)
+
+    def test_latest_defense_replaces_previous_defense(self):
+        self.cast()
+        self.now.return_value = 100.5
+        self.defend('Reflect')
+        self.defend('Shield')
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 100)
+        self.cast()
+        self.now.return_value = 102.5
+        self.defend('Shield')
+        self.defend('Reflect')
+        self.now.return_value = 104
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 75)
+
+    def test_defense_at_or_after_impact_is_too_late(self):
+        for spell in ('Shield', 'Reflect'):
+            with self.subTest(spell=spell):
+                self.server.players[2]['hp'] = 100
+                self.cast()
+                self.now.return_value += 2
+                self.defend(spell)
+                self.assertEqual(self.server.players[2]['hp'], 50)
+                self.server.resolve_fireballs()
+                self.assertEqual(self.server.players[2]['hp'], 50)
+
+    def test_reflection_does_not_target_a_new_player_reusing_attackers_number(self):
+        self.cast()
+        self.now.return_value = 101
+        self.defend('Reflect')
+        self.server.players.pop(1)
+        self.server.receive_join({'aruconum': 1, 'signature': signature('New Alice')}, self.a)
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 75)
+        self.now.return_value = 104
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[1]['hp'], 100)
+
+    def test_another_endpoint_cannot_defend_someone_else(self):
+        self.cast()
+        self.defend('Shield', address=self.a)
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 50)
+
+    def test_defenses_expire_at_two_seconds_even_for_an_incoming_fireball(self):
+        for spell in ('Shield', 'Reflect'):
+            with self.subTest(spell=spell):
+                self.server.players[2]['hp'] = 100
+                self.cast()
+                self.defend(spell)
+                self.now.return_value += 2
+                self.server.resolve_fireballs()
+                self.assertEqual(self.server.players[2]['hp'], 50)
+
+    def test_recasting_defense_restarts_the_two_second_window(self):
+        self.defend('Shield')
+        self.now.return_value = 101
+        self.cast()
+        self.now.return_value = 101.5
+        self.defend('Shield')
+        self.now.return_value = 103
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 100)
+
+    def test_impact_before_expiry_is_protected_even_if_server_resolves_late(self):
+        self.cast()
+        self.now.return_value = 101
+        self.defend('Shield')
+        self.now.return_value = 104
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 100)
+
+    def test_join_refresh_preserves_an_active_defense_window(self):
+        self.cast()
+        self.now.return_value = 101
+        self.defend('Shield')
+        self.server.receive_join({'aruconum': 2, 'signature': signature('Bob updated')}, self.b)
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['hp'], 100)
+
+    def test_damage_waits_two_seconds_and_is_broadcast_once(self):
+        self.cast()
+        self.assertEqual(self.server.players[2]['hp'], 100)
+        resolve = getattr(self.server, 'resolve_fireballs', None)
+        self.assertIsNotNone(resolve, 'Server must schedule damage at fireball impact')
+        revision = self.server.revision
+        self.now.return_value = 101.999
+        resolve()
+        self.assertEqual(self.server.players[2]['hp'], 100)
+        self.now.return_value = 102
+        resolve()
+        self.assertEqual(self.server.players[2]['hp'], 50)
+        self.assertEqual(self.server.revision, revision + 1)
+        updates = [p for p, _ in self.transport.packets if p['message_id'] == 1002]
+        self.assertEqual(len(updates), 2)
+        self.assertTrue(all(p['hp'] == 50 for p in updates))
+        resolve()
+        self.assertEqual(self.server.players[2]['hp'], 50)
+        self.assertEqual(self.server.revision, revision + 1)
+
+    def test_overlapping_fireballs_have_independent_impacts_and_hp_stops_at_zero(self):
+        self.cast()
+        resolve = getattr(self.server, 'resolve_fireballs', None)
+        self.assertIsNotNone(resolve, 'Server must schedule damage at fireball impact')
+        self.now.return_value = 101
+        self.cast()
+        self.cast()
+        self.now.return_value = 102
+        resolve()
+        self.assertEqual(self.server.players[2]['hp'], 50)
+        self.now.return_value = 103
+        resolve()
+        self.assertEqual(self.server.players[2]['hp'], 0)
+
+    def test_reused_number_does_not_receive_previous_players_damage(self):
+        self.cast()
+        resolve = getattr(self.server, 'resolve_fireballs', None)
+        self.assertIsNotNone(resolve, 'Server must schedule damage at fireball impact')
+        self.server.players.pop(2)
+        self.server.receive_join({'aruconum': 2, 'signature': signature('New Bob')}, self.b)
+        self.now.return_value = 102
+        resolve()
+        self.assertEqual(self.server.players[2]['hp'], 100)
 
 
 class ServerTests(unittest.TestCase):
@@ -20,10 +260,10 @@ class ServerTests(unittest.TestCase):
         self.a = self.client()
         self.b = self.client()
 
-    def start_server(self):
+    def start_server(self, timeout=1):
         self.process = subprocess.Popen(
             [sys.executable, '-u', str(Path(__file__).with_name('server.py')),
-             '--port', '0', '--timeout', '1'],
+             '--port', '0', '--timeout', str(timeout)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         line = self.process.stdout.readline()
@@ -196,9 +436,9 @@ class ServerTests(unittest.TestCase):
         before = self.join(self.b, 'Bob')
         self.receive(self.a)  # added notification
         for spell in ('Fireball', 'Shield', 'Reflect'):
-            self.send(self.a, {'message_id': 1001, 'aruconum': 1, 'data': spell})
+            self.send(self.a, {'message_id': 1001, 'aruconum': 1, 'data': spell, 'target': 2})
             expected = {'message_id': 1001, 'type': 'cast_spell',
-                        'aruconum': 1, 'data': spell}
+                        'aruconum': 1, 'data': spell, 'target': 2}
             self.assertEqual(self.receive(self.a), expected)
             self.assertEqual(self.receive(self.b), expected)
         self.send(self.a, {'message_id': 3, 'aruconum': 1})
@@ -206,11 +446,83 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(after['players'], before['players'])
         self.assertEqual(after['revision'], before['revision'])
 
+    def test_fireball_damage_is_broadcast_after_real_two_second_flight(self):
+        self.stop_server()
+        self.start_server(timeout=6)
+        self.join(self.a, 'Alice')
+        self.join(self.b, 'Bob')
+        self.receive(self.a)
+        started = time.monotonic()
+        self.send(self.a, {'message_id': 1001, 'aruconum': 1, 'data': 'Fireball', 'target': 2})
+        self.assertEqual(self.receive(self.a)['message_id'], 1001)
+        self.assertEqual(self.receive(self.b)['message_id'], 1001)
+        self.send(self.a, {'message_id': 3, 'aruconum': 1})
+        before = self.receive(self.a)
+        self.assertEqual(before['players'][1]['hp'], 100)
+        self.a.settimeout(1.5)
+        with self.assertRaises(socket.timeout):
+            self.receive(self.a)
+        self.a.settimeout(2)
+        impact = self.receive(self.a)
+        self.assertGreaterEqual(time.monotonic() - started, 1.95)
+        self.assertEqual(impact['message_id'], 1002)
+        self.assertEqual(impact['aruconum'], 2)
+        self.assertEqual(impact['hp'], 50)
+        self.assertEqual(impact['revision'], before['revision'] + 1)
+        self.assertEqual(self.receive(self.b), impact)
+
+    def test_reflect_returns_a_half_damage_fireball_over_udp(self):
+        self.stop_server()
+        self.start_server(timeout=10)
+        self.join(self.a, 'Alice')
+        self.join(self.b, 'Bob')
+        self.receive(self.a)
+        self.a.settimeout(3)
+        self.b.settimeout(3)
+        started = time.monotonic()
+        self.send(self.a, {'message_id': 1001, 'aruconum': 1, 'data': 'Fireball', 'target': 2})
+        self.assertEqual(self.receive(self.a)['data'], 'Fireball')
+        self.assertEqual(self.receive(self.b)['data'], 'Fireball')
+        # Windows' monotonic clock can give adjacent packets the same timestamp.
+        # Cast during the flight so defense expiry is strictly after impact.
+        time.sleep(0.1)
+        self.send(self.b, {'message_id': 1001, 'aruconum': 2, 'data': 'Reflect'})
+        self.assertEqual(self.receive(self.a)['data'], 'Reflect')
+        self.assertEqual(self.receive(self.b)['data'], 'Reflect')
+        first_impact = self.receive(self.a)
+        self.assertEqual(first_impact['message_id'], 1002)
+        self.assertEqual(first_impact['aruconum'], 2)
+        self.assertEqual(first_impact['hp'], 75)
+        self.assertEqual(self.receive(self.b), first_impact)
+        returned = self.receive(self.a)
+        self.assertEqual(returned, {'message_id': 1001, 'type': 'cast_spell',
+                                    'aruconum': 2, 'data': 'Fireball', 'target': 1})
+        self.assertEqual(self.receive(self.b), returned)
+        second_impact = self.receive(self.a)
+        self.assertGreaterEqual(time.monotonic() - started, 3.95)
+        self.assertEqual(second_impact['message_id'], 1002)
+        self.assertEqual(second_impact['aruconum'], 1)
+        self.assertEqual(second_impact['hp'], 75)
+        self.assertEqual(self.receive(self.b), second_impact)
+
     def test_cast_spell_accepts_string_message_type(self):
         self.join(self.a, 'Alice')
         self.send(self.a, {'type': 'cast_spell', 'aruconum': 1, 'data': 'Shield'})
         self.assertEqual(self.receive(self.a), {
             'message_id': 1001, 'type': 'cast_spell', 'aruconum': 1, 'data': 'Shield'})
+
+    def test_fireball_requires_another_connected_integer_target(self):
+        self.join(self.a, 'Alice')
+        self.join(self.b, 'Bob')
+        self.receive(self.a)
+        for target in (None, 0, 1, 3, 5, '2', True, 2.0, [], {}):
+            self.send(self.a, {'message_id': 1001, 'aruconum': 1,
+                               'data': 'Fireball', 'target': target})
+            self.assertEqual(self.receive(self.a).get('code'), 'invalid_target', target)
+        self.send(self.a, {'message_id': 1001, 'aruconum': 1, 'data': 'Fireball'})
+        self.assertEqual(self.receive(self.a).get('code'), 'invalid_target')
+        self.send(self.b, {'message_id': 3, 'aruconum': 2})
+        self.assertEqual(self.receive(self.b)['message_id'], 101)
 
     def test_invalid_spells_are_rejected_and_never_broadcast(self):
         self.join(self.a, 'Alice')

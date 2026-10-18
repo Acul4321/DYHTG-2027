@@ -10,6 +10,7 @@ namespace SpellBattle.Tracking
         readonly Vector3[] targets;
         readonly float[] lastSeen;
         readonly bool[] tracked;
+        readonly bool[] hasPosition;
         readonly float offset,width,timeout,smoothing;
 
         public ArucoPlayerDisplayPresenter(GameObject[] displays, Camera camera, float offsetMetres,
@@ -19,6 +20,7 @@ namespace SpellBattle.Tracking
             offset=offsetMetres;width=Mathf.Max(0.01f,widthMetres);timeout=Mathf.Max(0.01f,timeoutSeconds);smoothing=Mathf.Max(0.01f,smoothingRate);
             int count=Mathf.Min(4,this.displays.Length);
             canvases=new Canvas[count];targets=new Vector3[count];lastSeen=new float[count];tracked=new bool[count];
+            hasPosition=new bool[count];
             for(int i=0;i<count;i++) RefreshCanvas(i);
         }
 
@@ -29,10 +31,12 @@ namespace SpellBattle.Tracking
             if(previous && display && previous.gameObject==display) return previous;
             if(previous) previous.enabled=false;
             tracked[index]=false;
+            hasPosition[index]=false;
             canvases[index]=display?display.GetComponent<Canvas>():null;
             if(canvases[index])
             {
                 canvases[index].worldCamera=camera;
+                canvases[index].enabled=false;
             }
             return canvases[index];
         }
@@ -45,6 +49,7 @@ namespace SpellBattle.Tracking
             targets[markerId]=worldPose.position+Vector3.up*offset;
             bool reacquired=!tracked[markerId]||now-lastSeen[markerId]>timeout;
             tracked[markerId]=true;lastSeen[markerId]=now;
+            hasPosition[markerId]=true;
             if(reacquired) displays[markerId].transform.position=targets[markerId];
         }
 
@@ -53,11 +58,13 @@ namespace SpellBattle.Tracking
             for(int i=0;i<tracked.Length;i++)
             {
                 if(!RefreshCanvas(i)) continue;
-                bool visible=camera && tracked[i] && now-lastSeen[i]<=timeout;
-                //canvases[i].enabled=visible;
+                bool visible=camera && hasPosition[i];
+                canvases[i].enabled=visible;
                 if(!visible) {tracked[i]=false;continue;}
+                bool fresh=tracked[i] && now-lastSeen[i]<=timeout;
+                if(!fresh) tracked[i]=false;
                 Transform transform=displays[i].transform;
-                transform.position=Vector3.Lerp(transform.position,targets[i],1-Mathf.Exp(-smoothing*Mathf.Max(0,deltaTime)));
+                if(fresh) transform.position=Vector3.Lerp(transform.position,targets[i],1-Mathf.Exp(-smoothing*Mathf.Max(0,deltaTime)));
                 // UI canvas front is its local -Z side; align its +Z with the camera-to-label direction.
                 Vector3 away=transform.position-camera.transform.position;
                 if(away.sqrMagnitude>1e-8f) transform.rotation=Quaternion.LookRotation(away,camera.transform.up);
@@ -66,11 +73,20 @@ namespace SpellBattle.Tracking
                 {
                     Vector3 parentScale=transform.parent?transform.parent.lossyScale:Vector3.one;
                     if(Mathf.Abs(parentScale.x-parentScale.y)>0.001f||Mathf.Abs(parentScale.x-parentScale.z)>0.001f
-                        ||parentScale.x<=0) {tracked[i]=false;continue;}
+                        ||parentScale.x<=0) {tracked[i]=false;canvases[i].enabled=false;continue;}
                     transform.localScale=Vector3.one*(width/rect.rect.width/parentScale.x);
                 }
             }
         }
+
+        public bool IsTracked(int markerId)
+        {
+            return markerId >= 0 && markerId < tracked.Length && tracked[markerId]
+                && displays[markerId] && displays[markerId].activeInHierarchy && canvases[markerId]
+                && canvases[markerId].enabled;
+        }
+
+        public Vector3 GetMarkerPosition(int markerId) => targets[markerId] - Vector3.up * offset;
 
         public void Reset()
         {
@@ -78,6 +94,8 @@ namespace SpellBattle.Tracking
             {
                 RefreshCanvas(i);
                 tracked[i]=false;lastSeen[i]=float.NegativeInfinity;
+                hasPosition[i]=false;
+                if(canvases[i]) canvases[i].enabled=false;
             }
         }
     }

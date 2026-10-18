@@ -73,6 +73,7 @@ namespace SpellBattle.Tracking
                 if (LastDetectedCount != 0) ResetTracking("Waiting for AR tracking");
             }
             presenter?.Tick(Time.unscaledTime, Time.unscaledDeltaTime);
+            if (playerSystem) playerSystem.UpdateTarget(arCamera, presenter);
         }
 
         void OnSessionStateChanged(ARSessionStateChangedEventArgs args)
@@ -90,6 +91,7 @@ namespace SpellBattle.Tracking
         {
             generation++; frameGate.Reset(); presenter?.Reset();
             observations.Clear(); LastDetectedCount = 0; Status = status;
+            if (playerSystem) playerSystem.UpdateTarget(arCamera, null);
         }
 
         void OnCameraFrame(ARCameraFrameEventArgs args)

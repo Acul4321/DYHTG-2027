@@ -38,13 +38,17 @@ Request a full snapshot:
 ```
 Cast a spell (1001):
 ```json
-{"message_id":1001,"aruconum":1,"data":"Fireball"}
+{"message_id":1001,"aruconum":1,"data":"Fireball","target":2}
 ```
 `data` must be exactly `Fireball`, `Shield`, or `Reflect`. The sender must have
 joined and must own that number at its current UDP endpoint. Accepted casts
 refresh the player's activity timeout. Unknown players receive `unknown_player`;
 another endpoint using a taken number receives `aruconum_in_use`; missing,
 non-string, or unsupported spell names receive `invalid_spell`.
+`target` identifies another connected player's integer ArUco number. Fireball
+requires a target; missing, self, disconnected, or malformed targets receive
+`invalid_target`. Shield and Reflect may use `target: 0` (or omit it).
+Deploy the updated client and server together to relay targeted casts.
 
 ## Signature format
 
@@ -67,11 +71,49 @@ signature. Both the client and server must be updated together for this format.
 
 Confirmed cast (1001), broadcast to all connected players including the caster:
 ```json
-{"message_id":1001,"type":"cast_spell","aruconum":1,"data":"Fireball"}
+{"message_id":1001,"type":"cast_spell","aruconum":1,"data":"Fireball","target":2}
 ```
-Here `aruconum` identifies the caster. This confirms and broadcasts the spell;
-it does not apply damage, Shield, or Reflect effects. Casts do not change lobby
-revisions or player records. These are transient UDP events with no retry,
+Here `aruconum` identifies the caster. This confirms and broadcasts the spell.
+`target` is preserved when supplied for another player. Clients spawn the
+fireball once on this confirmation, using tracked displays for remote players
+and the AR camera for their local player's position. If either endpoint has no
+tracked position, the client skips the projectile visual. Fireballs fly to the
+position at cast confirmation over exactly two seconds, regardless of distance.
+An incoming cast instantiates `Assets/Prefabs/FireballWarning.prefab` on the
+target's client, showing **Fireball!** at the top of the screen for those two
+seconds, even if its caster is not currently tracked. Overlapping incoming
+casts keep the warning visible until the last flight ends. The target marker's
+`!` indicator is also instantiated from `Assets/Prefabs/TargetIndicator.prefab`.
+
+Two seconds after accepting a Fireball, the server subtracts 50 HP from its
+target (clamped to zero), increments the lobby revision, and broadcasts the
+health update using message 1002. Client visual timers never change HP. If the
+target leaves and its number is reused, the old cast cannot hurt the new player.
+Shield and Reflect last exactly two seconds from server acceptance. They protect
+the caster only when a fireball's scheduled impact is within that interval;
+an impact at the expiration time is unprotected. They require no opponent target.
+Recasting restarts the two-second window; switching spells replaces the previous
+defense immediately. A cast accepted at or after impact is too late. The server
+uses the scheduled impact time even if its next update is delayed.
+
+On every client, confirmed casts instantiate the existing
+`Assets/Prefabs/shield_0.prefab` or `Assets/Prefabs/reflect_0.prefab` for two seconds.
+Remote effects follow the caster's tracked display; local effects follow the AR
+camera. Remote visuals hide on tracking loss and reappear only for the remaining
+duration if tracking returns. Recasting refreshes the visual timer, switching
+replaces the effect, and leaving removes it.
+
+Shield blocks the covered hits completely. Reflect applies half the incoming
+damage at impact, then broadcasts a new Fireball from the defender toward the
+original attacker. This return flight also lasts two seconds, uses the existing
+projectile and warning prefabs, and deals the remaining half on arrival. Returns
+can themselves be shielded or reflected. With integer HP, odd damage keeps the
+extra point on the defender (25 becomes 13 taken and 12 returned), so repeated
+reflections never increase damage and eventually end. Returns are skipped if
+the original attacker has left or its marker number now belongs to a new player.
+
+Cast confirmations themselves
+do not change lobby revisions. These are transient UDP events with no retry,
 deduplication, or replay; a duplicated request can produce another broadcast.
 
 Snapshot (101), on join or sync:
@@ -143,3 +185,7 @@ register it in `handlers`. Add a send method for each new outgoing type.
 
 Run `python -m unittest -v` for local UDP integration tests. `--port 0` chooses
 a free port; `--timeout 1` shortens expiry for testing.
+
+### Health update (1002)
+
+The server broadcasts an absolute HP value after damage, using the same lobby revision sequence as player updates. Example: {"message_id":1002,"type":"update_health","revision":3,"aruconum":2,"hp":50}. Clients update the existing player object, refresh remote displays, and update the local HP text and slider (0-100) when the affected player is local. Snapshots and message 103 also refresh the health UI. Stale revisions are ignored; gaps request a snapshot. Deploy this server with the updated Unity client.

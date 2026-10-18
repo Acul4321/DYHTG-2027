@@ -179,11 +179,15 @@ public static class ArucoTrackingChecks
             presenter.Tick(0.34f,0.01f);Check(displays[0].GetComponent<Canvas>().enabled,"before timeout");
             presenter.Observe(1,new Pose(new Vector3(1,0,1),Quaternion.identity),0.34f);
             presenter.Tick(0.36f,0.02f);
-            Check(!displays[0].GetComponent<Canvas>().enabled&&displays[1].GetComponent<Canvas>().enabled,"independent timeouts");
+            Check(displays[0].GetComponent<Canvas>().enabled&&displays[1].GetComponent<Canvas>().enabled,"lost markers retain their display");
+            Check(!presenter.IsTracked(0)&&presenter.IsTracked(1),"retained displays do not count as fresh tracking");
             presenter.Observe(0,new Pose(new Vector3(5,0,1),Quaternion.identity),0.37f);presenter.Tick(0.37f,0.01f);
             Check(Mathf.Abs(displays[0].transform.position.x-5)<1e-5f,"reacquisition snap");
             presenter.Observe(0,new Pose(new Vector3(6,0,1),Quaternion.identity),0.38f);presenter.Tick(0.38f,0.01f);
             Check(displays[0].transform.position.x>5&&displays[0].transform.position.x<6,"smooth subsequent positions");
+            Vector3 retainedPosition=displays[0].transform.position;
+            presenter.Tick(1,0.62f);
+            Check(displays[0].GetComponent<Canvas>().enabled&&displays[0].transform.position==retainedPosition,"tracking loss freezes the last displayed position");
             presenter.Observe(99,Pose.identity,0.38f);
             presenter.Observe(0,new Pose(new Vector3(float.NaN,0,0),Quaternion.identity),0.38f);
             presenter.Reset();foreach(var display in displays) Check(!display.GetComponent<Canvas>().enabled,"reset");

@@ -5,6 +5,7 @@ import socket
 import sys
 import time
 from enum import IntEnum
+from dataclasses import dataclass
 
 ADDRESS = ('0.0.0.0', 7777)
 logger = logging.getLogger(__name__)
@@ -22,11 +23,25 @@ class MessageId(IntEnum):
     HEARTBEAT_ACK = 105
     ERROR = 199
     CAST_SPELL = 1001
+    UPDATE_HEALTH = 1002
 
 
 MESSAGE_NAMES = {message_id: message_id.name.lower() for message_id in MessageId}
 MESSAGE_IDS = {name: message_id for message_id, name in MESSAGE_NAMES.items()}
 SPELL_NAMES = ('Fireball', 'Shield', 'Reflect')
+FIREBALL_FLIGHT_SECONDS = 2.0
+FIREBALL_DAMAGE = 50
+DEFENSE_SECONDS = 2.0
+
+
+@dataclass
+class PendingFireball:
+    impact_at: float
+    caster: int
+    caster_session: object
+    target: int
+    target_session: object
+    damage: int
 
 
 def valid_signature(signature):
@@ -56,6 +71,7 @@ class LobbyServer:
         self.timeout = timeout
         self.players = {}
         self.revision = 0
+        self.pending_fireballs = []
         self.handlers = {
             MessageId.JOIN: self.receive_join,
             MessageId.HEARTBEAT: self.receive_heartbeat,
@@ -101,6 +117,10 @@ class LobbyServer:
         self.broadcast(MessageId.UPDATED, revision=self.revision,
                        player=self.public_player(aruconum))
 
+    def send_health_updated(self, aruconum):
+        self.broadcast(MessageId.UPDATE_HEALTH, revision=self.revision,
+                       aruconum=aruconum, hp=self.players[aruconum]['hp'])
+
     def send_removed(self, aruconum):
         self.broadcast(MessageId.REMOVED, revision=self.revision,
                        aruconum=aruconum)
@@ -112,9 +132,12 @@ class LobbyServer:
     def send_error(self, destination, code, aruconum=0):
         self.send_message(MessageId.ERROR, destination, code=code, aruconum=aruconum)
 
-    def send_cast_spell(self, aruconum, spell):
+    def send_cast_spell(self, aruconum, spell, target=0):
         # Include the caster so it also receives server confirmation.
-        self.broadcast(MessageId.CAST_SPELL, aruconum=aruconum, data=spell)
+        fields = {'aruconum': aruconum, 'data': spell}
+        if target:
+            fields['target'] = target
+        self.broadcast(MessageId.CAST_SPELL, **fields)
 
     def receive_message(self, data, sender):
         if not data or len(data) > 1200:
@@ -168,8 +191,10 @@ class LobbyServer:
         is_new = aruconum not in self.players
         changed = is_new or self.players[aruconum]['signature'] != signature
         hp = 100 if is_new else self.players[aruconum]['hp']
+        session = object() if is_new else self.players[aruconum]['session']
+        defense = ('', 0, 0) if is_new else self.players[aruconum]['defense']
         self.players[aruconum] = {'signature': list(signature), 'hp': hp, 'address': sender,
-                                   'last_seen': time.monotonic()}
+                                   'last_seen': time.monotonic(), 'session': session, 'defense': defense}
         if changed:
             self.revision += 1
             if is_new:
@@ -206,7 +231,52 @@ class LobbyServer:
             return
         if not self.refresh_player(aruconum, sender):
             return
-        self.send_cast_spell(aruconum, spell)
+        target = message.get('target', 0)
+        if (spell == 'Fireball' or target != 0) and (
+                type(target) is not int or target == aruconum or target not in self.players):
+            self.send_error(sender, 'invalid_target', aruconum)
+            return
+        # Resolve impacts that are already due before a new defense can affect them.
+        self.resolve_fireballs()
+        now = time.monotonic()
+        if spell == 'Fireball':
+            self.launch_fireball(aruconum, target, FIREBALL_DAMAGE, now)
+        else:
+            self.players[aruconum]['defense'] = (spell, now, now + DEFENSE_SECONDS)
+            self.send_cast_spell(aruconum, spell, target)
+
+    def launch_fireball(self, caster, target, damage, now):
+        self.pending_fireballs.append(PendingFireball(
+            now + FIREBALL_FLIGHT_SECONDS, caster, self.players[caster]['session'],
+            target, self.players[target]['session'], damage))
+        self.send_cast_spell(caster, 'Fireball', target)
+
+    def resolve_fireballs(self):
+        now = time.monotonic()
+        pending, self.pending_fireballs = self.pending_fireballs, []
+        for hit in pending:
+            if hit.impact_at > now:
+                self.pending_fireballs.append(hit)
+                continue
+            player = self.players.get(hit.target)
+            # A reused marker number belongs to a new player, not the old cast's target.
+            if player is None or player['session'] is not hit.target_session:
+                continue
+            spell, started_at, expires_at = player['defense']
+            # Judge the scheduled impact time, including when a server tick is delayed.
+            defense = spell if started_at <= hit.impact_at < expires_at else ''
+            if defense == 'Shield':
+                continue
+            reflected = hit.damage // 2 if defense == 'Reflect' else 0
+            # Keep total damage conserved for odd amounts: the defender takes the extra point.
+            hp = max(0, player['hp'] - (hit.damage - reflected))
+            if hp != player['hp']:
+                player['hp'] = hp
+                self.revision += 1
+                self.send_health_updated(hit.target)
+            attacker = self.players.get(hit.caster)
+            if reflected > 0 and attacker is not None and attacker['session'] is hit.caster_session:
+                self.launch_fireball(hit.target, hit.caster, reflected, now)
 
     def expire_players(self):
         now = time.monotonic()
@@ -221,6 +291,9 @@ class LobbyServer:
     def run(self):
         while True:
             self.expire_players()
+            self.resolve_fireballs()
+            wait = min((hit.impact_at - time.monotonic() for hit in self.pending_fireballs), default=0.2)
+            self.socket.settimeout(max(0.001, min(0.2, wait)))
             try:
                 data, sender = self.socket.recvfrom(65535)
             except (socket.timeout, ConnectionResetError):
