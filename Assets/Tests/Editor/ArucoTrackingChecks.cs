@@ -168,7 +168,7 @@ public static class ArucoTrackingChecks
                 displays[i].GetComponent<Canvas>().renderMode=RenderMode.WorldSpace;
             }
             var presenter=new ArucoPlayerDisplayPresenter(displays,cameraObject.GetComponent<Camera>(),0.1f,0.2f,0.35f,12);
-            foreach(var display in displays) Check(!display.GetComponent<Canvas>().enabled,"initially hidden");
+            foreach(var display in displays) Check(display.GetComponent<Canvas>().enabled,"initially visible before detecting markers");
             for(int i=0;i<4;i++) presenter.Observe(i,new Pose(new Vector3(i,0,1),Quaternion.identity),0);
             presenter.Tick(0,0.016f);
             for(int i=0;i<4;i++){
@@ -190,7 +190,7 @@ public static class ArucoTrackingChecks
             Check(displays[0].GetComponent<Canvas>().enabled&&displays[0].transform.position==retainedPosition,"tracking loss freezes the last displayed position");
             presenter.Observe(99,Pose.identity,0.38f);
             presenter.Observe(0,new Pose(new Vector3(float.NaN,0,0),Quaternion.identity),0.38f);
-            presenter.Reset();foreach(var display in displays) Check(!display.GetComponent<Canvas>().enabled,"reset");
+            presenter.Reset();foreach(var display in displays) Check(display.GetComponent<Canvas>().enabled,"reset keeps canvases visible");
             var partial=new ArucoPlayerDisplayPresenter(new[]{displays[0],null},cameraObject.GetComponent<Camera>(),0.1f,0.2f,0.35f,12);
             partial.Observe(1,Pose.identity,0);partial.Observe(0,Pose.identity,0);partial.Tick(0,0.01f);
             Check(displays[0].GetComponent<Canvas>().enabled,"missing reference isolation");partial.Reset();
@@ -222,17 +222,17 @@ public static class ArucoTrackingChecks
             Check(objects[0].GetComponent<Canvas>().enabled,"reference regression starts visible");
             mapping[0]=null;
             presenter.Observe(1,new Pose(new Vector3(2,0,1),Quaternion.identity),0.4f);presenter.Tick(0.4f,0.016f);
-            Check(!objects[0].GetComponent<Canvas>().enabled,"cleared mapping must hide its old cached canvas");
+            Check(objects[0].GetComponent<Canvas>().enabled,"cleared mapping keeps its old cached canvas visible");
             Check(objects[1].GetComponent<Canvas>().enabled,"cleared mapping must not stop another marker");
             mapping[0]=objects[2];presenter.Observe(0,new Pose(new Vector3(3,0,1),Quaternion.identity),0.5f);presenter.Tick(0.5f,0.016f);
-            Check(objects[2].GetComponent<Canvas>().enabled&&!objects[0].GetComponent<Canvas>().enabled,"replacement owns the correct canvas");
+            Check(objects[2].GetComponent<Canvas>().enabled&&objects[0].GetComponent<Canvas>().enabled,"replacement and old canvas stay visible");
             mapping[0]=objects[0];presenter.Observe(0,new Pose(new Vector3(4,0,1),Quaternion.identity),0.6f);presenter.Tick(0.6f,0.016f);
-            Check(!objects[2].GetComponent<Canvas>().enabled&&objects[0].GetComponent<Canvas>().enabled,"replacement's old canvas is hidden");
+            Check(objects[2].GetComponent<Canvas>().enabled&&objects[0].GetComponent<Canvas>().enabled,"replacement's old canvas stays visible");
             Check(Mathf.Abs(objects[0].transform.position.x-4)<1e-5f,"replacement snaps instead of using old smoothing history");
-            presenter.Reset();foreach(var item in objects)Check(!item.GetComponent<Canvas>().enabled,"reset after rebinding");
+            presenter.Reset();foreach(var item in objects)Check(item.GetComponent<Canvas>().enabled,"reset after rebinding keeps canvases visible");
         }
         finally{foreach(var item in objects)if(item)UnityEngine.Object.DestroyImmediate(item);UnityEngine.Object.DestroyImmediate(cameraObject);}
-        Debug.Log("DISPLAY REFERENCE CHANGE CHECKS PASSED: clearing/replacing a slot hides its old canvas and isolates other markers.");
+        Debug.Log("DISPLAY REFERENCE CHANGE CHECKS PASSED: clearing/replacing a slot keeps canvases visible and isolates other markers.");
     }
 
     [MenuItem("Tools/Tests/ArUco Tracking/Marker References")]

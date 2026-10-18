@@ -33,8 +33,10 @@ public class PlayerSystem : MonoBehaviour
 
     public GameObject CastStatusGameObject;
     public GameObject LoadingScreen;
+    public GameObject HurtScreen;
     public bool test;
     private float castStatusRemaining;
+    private float hurtScreenRemaining;
     private bool awaitingCastConfirmation;
     [Min(0.01f)] public float defenseSizeMetres = 0.25f;
     [Min(0.01f)] public float reflectSizeMetres = 0.15f;
@@ -294,6 +296,12 @@ public class PlayerSystem : MonoBehaviour
 
     private void Update()
     {
+        if (hurtScreenRemaining > 0)
+        {
+            hurtScreenRemaining -= Time.unscaledDeltaTime;
+            if (hurtScreenRemaining <= 0 && HurtScreen)
+                HurtScreen.SetActive(false);
+        }
         if (castStatusRemaining > 0)
         {
             castStatusRemaining -= Time.unscaledDeltaTime;
@@ -373,6 +381,7 @@ public class PlayerSystem : MonoBehaviour
     {
         Instance = this;
         if (LoadingScreen) LoadingScreen.SetActive(false);
+        if (HurtScreen) HurtScreen.SetActive(false);
         UpdatePlayerDisplays();
     }
 
@@ -630,6 +639,13 @@ public class PlayerSystem : MonoBehaviour
             RequestSnapshot();
             return;
         }
+        // Lethal hits immediately respawn at full HP, so also check the death count.
+        if (message.aruconum == aruconum
+            && (message.hp < player.hp || message.deaths > player.deaths))
+        {
+            hurtScreenRemaining = 0.5f;
+            if (HurtScreen) HurtScreen.SetActive(true);
+        }
         player.hp = message.hp;
         player.deaths = message.deaths;
         SnapshotRevision = message.revision;
@@ -686,6 +702,8 @@ public class PlayerSystem : MonoBehaviour
         AdvanceDefenseEffects(0);
         if (LocalPlayer == null)
         {
+            hurtScreenRemaining = 0;
+            if (HurtScreen) HurtScreen.SetActive(false);
             DestroyDefenseMessage();
             incomingFireballs.Clear();
             if (FireballWarning) FireballWarning.SetActive(false);

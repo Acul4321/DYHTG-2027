@@ -29,14 +29,13 @@ namespace SpellBattle.Tracking
             GameObject display=displays[index];
             Canvas previous=canvases[index];
             if(previous && display && previous.gameObject==display) return previous;
-            if(previous) previous.enabled=false;
             tracked[index]=false;
             hasPosition[index]=false;
             canvases[index]=display?display.GetComponent<Canvas>():null;
             if(canvases[index])
             {
                 canvases[index].worldCamera=camera;
-                canvases[index].enabled=false;
+                canvases[index].enabled=true;
             }
             return canvases[index];
         }
@@ -58,9 +57,8 @@ namespace SpellBattle.Tracking
             for(int i=0;i<tracked.Length;i++)
             {
                 if(!RefreshCanvas(i)) continue;
-                bool visible=camera && hasPosition[i];
-                canvases[i].enabled=visible;
-                if(!visible) {tracked[i]=false;continue;}
+                canvases[i].enabled=true;
+                if(!camera || !hasPosition[i]) {tracked[i]=false;continue;}
                 bool fresh=tracked[i] && now-lastSeen[i]<=timeout;
                 if(!fresh) tracked[i]=false;
                 Transform transform=displays[i].transform;
@@ -73,7 +71,7 @@ namespace SpellBattle.Tracking
                 {
                     Vector3 parentScale=transform.parent?transform.parent.lossyScale:Vector3.one;
                     if(Mathf.Abs(parentScale.x-parentScale.y)>0.001f||Mathf.Abs(parentScale.x-parentScale.z)>0.001f
-                        ||parentScale.x<=0) {tracked[i]=false;canvases[i].enabled=false;continue;}
+                        ||parentScale.x<=0) {tracked[i]=false;continue;}
                     transform.localScale=Vector3.one*(width/rect.rect.width/parentScale.x);
                 }
             }
@@ -102,7 +100,7 @@ namespace SpellBattle.Tracking
                 RefreshCanvas(i);
                 tracked[i]=false;lastSeen[i]=float.NegativeInfinity;
                 hasPosition[i]=false;
-                if(canvases[i]) canvases[i].enabled=false;
+                if(canvases[i]) canvases[i].enabled=true;
             }
         }
     }
