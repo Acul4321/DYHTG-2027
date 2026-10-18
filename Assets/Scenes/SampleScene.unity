@@ -325,7 +325,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &131746994
 RectTransform:
   m_ObjectHideFlags: 0
@@ -7238,7 +7238,7 @@ MonoBehaviour:
       m_Calls: []
   m_Sprite: {fileID: 7501387830980884940, guid: 3aebf8362e6ad1c47bfed9ecc3761b6f, type: 3}
   m_Type: 0
-  m_PreserveAspect: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1
@@ -9291,6 +9291,7 @@ MonoBehaviour:
   LoadingScreen: {fileID: 131746993}
   test: 0
   defenseSizeMetres: 0.25
+  reflectSizeMetres: 0.15
   fireballSizeMetres: 0.12
   hp: {fileID: 837254966}
   hpslider: {fileID: 1399777496}

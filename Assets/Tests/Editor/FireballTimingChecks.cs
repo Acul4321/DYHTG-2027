@@ -27,6 +27,28 @@ public static class FireballTimingChecks
         }
         finally { if (obj) UnityEngine.Object.DestroyImmediate(obj); }
 
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/fireball_0.prefab");
+        var explosion = UnityEngine.Object.Instantiate(prefab);
+        try
+        {
+            var ball = explosion.GetComponent<FireballObject>();
+            if (!ball) ball = explosion.AddComponent<FireballObject>();
+            var particles = explosion.GetComponentInChildren<ParticleSystem>(true);
+            Check(particles != null, "Fireball prefab must include explosion particles.");
+            ball.Initialize(Vector3.one, null);
+            ball.Advance(1);
+            Check(!particles.gameObject.activeSelf, "Explosion stays inactive during flight.");
+            ball.Advance(1);
+            Check(explosion && particles.gameObject.activeSelf && particles.isPlaying,
+                "Impact activates the explosion and keeps it alive.");
+            Check(!explosion.GetComponentInChildren<SpriteRenderer>(true).enabled,
+                "Flying sprite disappears at impact.");
+            particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            ball.Advance(0);
+            Check(!explosion, "Fireball is removed after its particles finish.");
+        }
+        finally { if (explosion) UnityEngine.Object.DestroyImmediate(explosion); }
+
         var root = new GameObject("Incoming warning checks");
         PlayerSystem previous = PlayerSystem.Instance;
         GameObject warning = null;
@@ -45,7 +67,9 @@ public static class FireballTimingChecks
             system.ReceiveNetworkMessage("{\"message_id\":1001,\"aruconum\":2,\"data\":\"Fireball\",\"target\":1}");
             warning = system.FireballWarning;
             Check(warning && warning.activeSelf, "Incoming fireball warns even without a tracked caster display.");
-            Check(warning.GetComponentInChildren<TMPro.TMP_Text>().text == "Fireball!", "Warning uses exact Fireball! text.");
+            Check(warning.GetComponentInChildren<TMPro.TMP_Text>().text == "Fireball Incoming", "Warning uses Fireball Incoming text.");
+            var slider = warning.GetComponentInChildren<UnityEngine.UI.Slider>();
+            Check(slider && slider.value == 2 && !slider.interactable, "Incoming countdown starts at two seconds.");
             Check(warning.GetComponent<Canvas>().renderMode == RenderMode.ScreenSpaceOverlay,
                 "Warning must be screen UI, independent of AR camera tracking.");
             var banner = warning.transform.Find("Banner") as RectTransform;
@@ -53,7 +77,9 @@ public static class FireballTimingChecks
                 "Authored warning banner must be anchored at the top of the screen.");
             Action<float> advance = system.AdvanceFireballWarnings;
             advance(1);
+            Check(Mathf.Abs(slider.normalizedValue - 0.5f) < 0.001f, "Incoming countdown is half full after one second.");
             system.ReceiveNetworkMessage("{\"message_id\":1001,\"aruconum\":2,\"data\":\"Fireball\",\"target\":1}");
+            Check(slider.value == 1, "A later fireball does not reset the next-impact countdown.");
             advance(1);
             Check(warning.activeSelf && system.IncomingFireballCount == 1,
                 "Warning stays visible for a later incoming fireball.");

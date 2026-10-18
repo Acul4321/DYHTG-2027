@@ -36,8 +36,15 @@ public static class HealthMessageChecks
             Check(system.GetPlayer(2).hp == 25 && system.hp.text == "50", "Remote health does not change local UI.");
             system.ReceiveNetworkMessage("{\"message_id\":1002,\"aruconum\":1,\"hp\":100,\"revision\":2}");
             Check(player.hp == 50, "Stale health updates are ignored.");
-            system.ReceiveNetworkMessage("{\"message_id\":1002,\"aruconum\":1,\"hp\":0,\"revision\":4}");
-            Check(system.hp.text == "0" && system.hpslider.value == 0, "Zero health empties the slider.");
+            system.ReceiveNetworkMessage("{\"message_id\":1002,\"aruconum\":1,\"hp\":100,\"deaths\":1,\"revision\":4}");
+            Check(system.hp.text == "100" && system.hpslider.value == 100 && player.deaths == 1,
+                "Respawn update restores HP and syncs the death count.");
+            var display = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/PlayerDisplay.prefab"), root.transform);
+            var view = display.GetComponent<PlayerDisplayView>();
+            if (!view) view = display.AddComponent<PlayerDisplayView>();
+            view.SetPlayer(player);
+            Check(display.transform.Find("deaths").GetComponent<TMP_Text>().text == "Deaths: 1",
+                "Player display shows the synced death count.");
             system.ReceiveNetworkMessage("{\"message_id\":104,\"aruconum\":1,\"revision\":5}");
             Check(system.hp.text == "" && system.hpslider.value == 0, "Leaving clears local health.");
             Debug.Log("HEALTH MESSAGE CHECKS PASSED: snapshot, player mutation, local UI, remote UI isolation, stale updates, zero HP and removal.");

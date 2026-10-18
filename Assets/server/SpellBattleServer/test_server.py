@@ -36,6 +36,22 @@ class FireballImpactTests(unittest.TestCase):
     def cast(self):
         self.server.receive_cast_spell({'aruconum': 1, 'data': 'Fireball', 'target': 2}, self.a)
 
+    def test_lethal_hit_resets_hp_and_broadcasts_one_death(self):
+        self.server.players[2]['hp'] = 50
+        revision = self.server.revision
+        self.cast()
+        self.now.return_value = 102
+        self.server.resolve_fireballs()
+        updates = [p for p, _ in self.transport.packets if p['message_id'] == 1002]
+        self.assertEqual(len(updates), 2)  # One update to each connected player.
+        self.assertTrue(all(p['hp'] == 100 and p['deaths'] == 1 for p in updates))
+        self.assertEqual(self.server.revision, revision + 1)
+        self.server.resolve_fireballs()
+        self.assertEqual(self.server.players[2]['deaths'], 1)
+        self.server.receive_join({'aruconum': 2, 'signature': signature('New signature')}, self.b)
+        self.assertEqual(self.server.public_player(2)['deaths'], 1)
+        self.assertEqual(self.server.public_player(2)['hp'], 100)
+
     def defend(self, spell, number=2, address=None):
         self.server.receive_cast_spell({'aruconum': number, 'data': spell},
                                        address or (self.b if number == 2 else self.a))
@@ -227,7 +243,7 @@ class FireballImpactTests(unittest.TestCase):
         self.assertEqual(self.server.players[2]['hp'], 50)
         self.assertEqual(self.server.revision, revision + 1)
 
-    def test_overlapping_fireballs_have_independent_impacts_and_hp_stops_at_zero(self):
+    def test_overlapping_fireballs_have_independent_impacts_and_respawn(self):
         self.cast()
         resolve = getattr(self.server, 'resolve_fireballs', None)
         self.assertIsNotNone(resolve, 'Server must schedule damage at fireball impact')
@@ -239,7 +255,8 @@ class FireballImpactTests(unittest.TestCase):
         self.assertEqual(self.server.players[2]['hp'], 50)
         self.now.return_value = 103
         resolve()
-        self.assertEqual(self.server.players[2]['hp'], 0)
+        self.assertEqual(self.server.players[2]['hp'], 50)
+        self.assertEqual(self.server.players[2]['deaths'], 1)
 
     def test_reused_number_does_not_receive_previous_players_damage(self):
         self.cast()
@@ -319,13 +336,13 @@ class ServerTests(unittest.TestCase):
         alice = first['aruconum']
         self.assertEqual(alice, self.numbers[self.a])
         self.assertNotIn('player_id', first)
-        self.assertEqual(first['players'], [{'aruconum': alice, 'signature': signature('Alice'), 'hp': 100}])
+        self.assertEqual(first['players'], [{'aruconum': alice, 'signature': signature('Alice'), 'hp': 100, 'deaths': 0}])
         second = self.join(self.b, 'Bob')
         self.assertEqual(len(second['players']), 2)
         added = self.receive(self.a)
         self.assertEqual(added['type'], 'added')
         self.assertEqual(added['message_id'], 102)
-        self.assertEqual(added['player'], {'aruconum': second['aruconum'], 'signature': signature('Bob'), 'hp': 100})
+        self.assertEqual(added['player'], {'aruconum': second['aruconum'], 'signature': signature('Bob'), 'hp': 100, 'deaths': 0})
         self.send(self.b, {'type': 'join', 'aruconum': second['aruconum'], 'signature': signature('Bobby')})
         self.assertEqual(self.receive(self.a)['player']['signature'], signature('Bobby'))
         updated = self.receive(self.b)
@@ -398,7 +415,7 @@ class ServerTests(unittest.TestCase):
         returned = self.receive(self.b)
         self.assertEqual(returned['aruconum'], original['aruconum'])
         self.assertEqual(len(returned['players']), 1)
-        self.assertEqual(returned['players'][0], {'aruconum': self.numbers[self.a], 'signature': signature('Alice'), 'hp': 100})
+        self.assertEqual(returned['players'][0], {'aruconum': self.numbers[self.a], 'signature': signature('Alice'), 'hp': 100, 'deaths': 0})
         self.assertNotIn('player_id', returned)
 
     def test_different_numbers_create_distinct_players(self):

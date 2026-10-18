@@ -5,6 +5,7 @@ public class Player
     public int aruconum;
     public int[] signature;
     public int hp;
+    public int deaths;
     private void CastSpell(Spell spell)
     {
         Debug.Log($"Player {aruconum} is Casting spell: {spell.Name}");

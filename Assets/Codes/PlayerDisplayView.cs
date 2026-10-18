@@ -5,6 +5,7 @@ public class PlayerDisplayView : MonoBehaviour
 {
     private TMP_Text idLabel;
     private TMP_Text hpLabel;
+    private TMP_Text deathsLabel;
     private SignatureGraphic signatureGraphic;
     private TMP_Text targetIndicator;
     public GameObject targetIndicatorPrefab;
@@ -24,10 +25,11 @@ public class PlayerDisplayView : MonoBehaviour
 
     public void SetPlayer(Player player)
     {
-        if (idLabel == null || hpLabel == null || signatureGraphic == null)
+        if (idLabel == null || hpLabel == null || deathsLabel == null || signatureGraphic == null)
             Bind();
         if (idLabel != null) idLabel.text = player == null ? "" : player.aruconum.ToString();
         if (hpLabel != null) hpLabel.text = player == null ? "" : player.hp.ToString();
+        if (deathsLabel != null) deathsLabel.text = player == null ? "" : "Deaths: " + player.deaths;
         if (signatureGraphic != null) signatureGraphic.SetSignature(player?.signature);
         // Marker tracking owns the root Canvas and visibility; only update content.
     }
@@ -38,6 +40,7 @@ public class PlayerDisplayView : MonoBehaviour
         {
             if (label.name == "id") idLabel = label;
             else if (label.name == "hpnum") hpLabel = label;
+            else if (label.name == "deaths") deathsLabel = label;
             else if (label.name == "name")
             {
                 label.enabled = false;

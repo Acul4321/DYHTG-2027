@@ -17,7 +17,7 @@ String `type` requests are also accepted; explicit numeric IDs take precedence.
 Players are keyed by integer `aruconum`, chosen by drawing 1, 2, 3, or 4 in Unity.
 After number selection, the client prompts "Sign your name" with Clear and Done
 buttons. It waits for Done before joining. Each player record contains `aruconum`,
-`signature`, and `hp` (initially 100). Numbers must be JSON integers from 1 to 4;
+`signature`, and `hp` (initially 100), and `deaths` (initially 0). Numbers must be JSON integers from 1 to 4;
 strings, booleans and floats are rejected. There is no string player name.
 The protocol no longer accepts machine IDs. Deploy the updated client and server
 together.
@@ -86,7 +86,7 @@ casts keep the warning visible until the last flight ends. The target marker's
 `!` indicator is also instantiated from `Assets/Prefabs/TargetIndicator.prefab`.
 
 Two seconds after accepting a Fireball, the server subtracts 50 HP from its
-target (clamped to zero), increments the lobby revision, and broadcasts the
+target. A lethal hit increments deaths once and immediately restores HP to 100. The server increments the lobby revision and broadcasts the
 health update using message 1002. Client visual timers never change HP. If the
 target leaves and its number is reused, the old cast cannot hurt the new player.
 Shield and Reflect last exactly two seconds from server acceptance. They protect
@@ -189,3 +189,7 @@ a free port; `--timeout 1` shortens expiry for testing.
 ### Health update (1002)
 
 The server broadcasts an absolute HP value after damage, using the same lobby revision sequence as player updates. Example: {"message_id":1002,"type":"update_health","revision":3,"aruconum":2,"hp":50}. Clients update the existing player object, refresh remote displays, and update the local HP text and slider (0-100) when the affected player is local. Snapshots and message 103 also refresh the health UI. Stale revisions are ignored; gaps request a snapshot. Deploy this server with the updated Unity client.
+
+### Deaths and respawn
+
+The server owns death counts. Each lethal hit adds one death and restores HP to 100 in a single revision. Message 1002 includes both hp and deaths; snapshots (101) and full player messages (102/103) also include deaths. Signature updates preserve deaths for the current player session. Leaving and joining a new session starts at zero deaths. Player displays show the synchronized total. Deploy the updated server and client together.

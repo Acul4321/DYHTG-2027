@@ -87,6 +87,14 @@ public static class ArucoNumberSelectionChecks
                 });
             }
             Check(covered.Count == 4, "All four digits must be recognizable.");
+            numberField.SetValue(player, 0);
+            typeof(PlayerSystem).GetProperty("Signature").SetValue(player, null);
+            WithController(controller =>
+            {
+                Draw(controller, new List<Point>(Stroke(5,30,15,10,35,0,60,5,70,20,65,35,
+                    45,50,25,65,10,85,15,100,35,100,60,90,80,95)));
+                Check(player.aruconum == 2, "A handwritten 2 with a curved tail must not be confused with 3.");
+            });
             // Independent drawings, rather than exact copies of the saved examples.
             Point[][] drawings =
             {

@@ -30,6 +30,7 @@ public class SnapshotMessage
 public class LobbyServerMessage : SnapshotMessage
 {
     public int hp;
+    public int deaths;
     public Player player;
     public string code;
     public string data;

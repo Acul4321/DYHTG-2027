@@ -37,6 +37,7 @@ public class PlayerSystem : MonoBehaviour
     private float castStatusRemaining;
     private bool awaitingCastConfirmation;
     [Min(0.01f)] public float defenseSizeMetres = 0.25f;
+    [Min(0.01f)] public float reflectSizeMetres = 0.15f;
     public const float DefenseDuration = 2f;
     private sealed class DefenseVisual
     {
@@ -50,6 +51,7 @@ public class PlayerSystem : MonoBehaviour
     private readonly List<float> incomingFireballs = new List<float>();
     public int IncomingFireballCount => incomingFireballs.Count;
     public GameObject FireballWarning { get; private set; }
+    private Slider fireballWarningSlider;
     public int TargetArucoNumber { get; private set; }
     private Camera targetingCamera;
     private ArucoPlayerDisplayPresenter displayPresenter;
@@ -74,7 +76,7 @@ public class PlayerSystem : MonoBehaviour
             for (int i = 0; i < Mathf.Min(4, playerDisplays.Length); i++)
             {
                 int number = i + 1;
-                if (number == aruconum || GetPlayer(number) == null || !presenter.IsTracked(i)) continue;
+                if (number == aruconum || GetPlayer(number) == null || !presenter.HasPosition(i)) continue;
                 Vector3 viewport = camera.WorldToViewportPoint(presenter.GetMarkerPosition(i));
                 if (viewport.z <= 0 || viewport.x < 0 || viewport.x > 1 || viewport.y < 0 || viewport.y > 1) continue;
                 float distance = new Vector2((viewport.x - 0.5f) * camera.aspect, viewport.y - 0.5f).sqrMagnitude;
@@ -141,7 +143,7 @@ public class PlayerSystem : MonoBehaviour
             return true;
         }
         if (playerDisplays == null || number > playerDisplays.Length || !playerDisplays[number - 1]
-            || displayPresenter == null || !displayPresenter.IsTracked(number - 1)) return false;
+            || displayPresenter == null || !displayPresenter.HasPosition(number - 1)) return false;
         position = playerDisplays[number - 1].transform.position;
         return true;
     }
@@ -169,8 +171,18 @@ public class PlayerSystem : MonoBehaviour
         {
             incomingFireballs.Add(FireballObject.FlightDuration);
             if (!FireballWarning && fireballWarningPrefab)
+            {
                 FireballWarning = Instantiate(fireballWarningPrefab);
-            if (FireballWarning) FireballWarning.SetActive(true);
+                fireballWarningSlider = FireballWarning.GetComponentInChildren<Slider>(true);
+                if (fireballWarningSlider)
+                {
+                    fireballWarningSlider.interactable = false;
+                    fireballWarningSlider.wholeNumbers = false;
+                    fireballWarningSlider.minValue = 0;
+                    fireballWarningSlider.maxValue = FireballObject.FlightDuration;
+                }
+            }
+            AdvanceFireballWarnings(0);
         }
         SpawnFireball(caster, target);
     }
@@ -236,20 +248,24 @@ public class PlayerSystem : MonoBehaviour
             }
             if (!visual.Instance && visual.Prefab)
             {
-                visual.Instance = Instantiate(visual.Prefab);
+                // Keep caster placement and world size outside the prefab's animated transform.
+                visual.Instance = new GameObject(visual.Spell + " defense " + (i + 1));
+                GameObject animatedVisual = Instantiate(visual.Prefab, visual.Instance.transform, false);
+                animatedVisual.transform.localPosition = Vector3.zero;
                 var sprite = visual.Instance.GetComponentInChildren<SpriteRenderer>();
                 if (sprite && sprite.sprite)
                 {
-                    Vector3 size = sprite.sprite.bounds.size;
+                    Vector3 size = sprite.bounds.size;
                     float extent = Mathf.Max(size.x, size.y, size.z);
-                    if (extent > 0) visual.Instance.transform.localScale *= defenseSizeMetres / extent;
+                    float sizeMetres = visual.Spell == "Reflect" ? reflectSizeMetres : defenseSizeMetres;
+                    if (extent > 0) visual.Instance.transform.localScale *= sizeMetres / extent;
                 }
             }
             if (!visual.Instance) continue;
             visual.Instance.SetActive(true);
             visual.Instance.transform.position = i + 1 == aruconum
-                ? position + targetingCamera.transform.forward * 0.45f - targetingCamera.transform.up * 0.12f
-                : position + Vector3.up * 0.12f;
+                ? position + targetingCamera.transform.forward * 0.45f - targetingCamera.transform.up * 0.17f
+                : position + Vector3.up * 0.07f;
             visual.Instance.transform.rotation = targetingCamera.transform.rotation;
         }
     }
@@ -296,6 +312,13 @@ public class PlayerSystem : MonoBehaviour
             if (incomingFireballs[i] <= 0) incomingFireballs.RemoveAt(i);
         }
         if (FireballWarning) FireballWarning.SetActive(incomingFireballs.Count > 0);
+        float remaining = 0;
+        if (incomingFireballs.Count > 0)
+        {
+            remaining = float.PositiveInfinity;
+            foreach (float flight in incomingFireballs) remaining = Mathf.Min(remaining, flight);
+        }
+        if (fireballWarningSlider) fireballWarningSlider.SetValueWithoutNotify(remaining);
     }
     public Player GetPlayer(int arucoNumber)
     {
@@ -602,12 +625,13 @@ public class PlayerSystem : MonoBehaviour
     {
         if (!CanApplyDelta(message.revision)) return;
         Player player = GetPlayer(message.aruconum);
-        if (player == null || message.hp < 0 || message.hp > 100)
+        if (player == null || message.hp < 0 || message.hp > 100 || message.deaths < 0)
         {
             RequestSnapshot();
             return;
         }
         player.hp = message.hp;
+        player.deaths = message.deaths;
         SnapshotRevision = message.revision;
         NotifyPlayersChanged();
     }

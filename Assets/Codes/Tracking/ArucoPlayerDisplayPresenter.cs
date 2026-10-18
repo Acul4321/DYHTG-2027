@@ -88,6 +88,13 @@ namespace SpellBattle.Tracking
 
         public Vector3 GetMarkerPosition(int markerId) => targets[markerId] - Vector3.up * offset;
 
+        public bool HasPosition(int markerId)
+        {
+            return markerId >= 0 && markerId < hasPosition.Length && hasPosition[markerId]
+                && displays[markerId] && displays[markerId].activeInHierarchy && canvases[markerId]
+                && canvases[markerId].enabled;
+        }
+
         public void Reset()
         {
             for(int i=0;i<tracked.Length;i++)

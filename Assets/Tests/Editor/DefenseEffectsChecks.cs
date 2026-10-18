@@ -47,6 +47,9 @@ public static class DefenseEffectsChecks
             cast(1, "Shield"); cast(2, "Reflect");
             var local = effect(1); var remote = effect(2);
             Check(local && remote && local != remote, "Every caster gets their own defense effect.");
+            var reflectBounds = remote.GetComponentInChildren<SpriteRenderer>().bounds.size;
+            Check(Mathf.Abs(Mathf.Max(reflectBounds.x, reflectBounds.y, reflectBounds.z) - system.reflectSizeMetres) < 0.001f,
+                "Reflect uses its own smaller world-space size.");
             Check(local.GetComponentInChildren<SpriteRenderer>().sprite == shield.GetComponentInChildren<SpriteRenderer>().sprite,
                 "Local Shield instantiates the authored Shield prefab.");
             Check(remote.GetComponentInChildren<SpriteRenderer>().sprite == reflect.GetComponentInChildren<SpriteRenderer>().sprite,
@@ -55,6 +58,17 @@ public static class DefenseEffectsChecks
                 "Local effect appears in front of the local camera.");
             Check(Vector3.Distance(remote.transform.position, displays[1].transform.position) < 0.5f,
                 "Remote effect appears at the remote player display.");
+            Vector3 remotePosition = remote.transform.position;
+            foreach (var animator in remote.GetComponentsInChildren<Animator>())
+            {
+                animator.Rebind();
+                animator.Update(0.1f);
+            }
+            reflectBounds = remote.GetComponentInChildren<SpriteRenderer>().bounds.size;
+            Check(Mathf.Max(reflectBounds.x, reflectBounds.y, reflectBounds.z) <= system.reflectSizeMetres * 1.3f,
+                "Reflect animation must preserve its small world size.");
+            Check(remote.transform.position == remotePosition && Vector3.Distance(remotePosition, camera.transform.position) > 1,
+                "Remote Reflect animation stays at its caster and never moves to the local camera.");
             Vector3 oldLocal = local.transform.position, oldRemote = remote.transform.position;
             camera.transform.position += Vector3.right;
             displays[1].transform.position += Vector3.right;

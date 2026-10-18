@@ -56,8 +56,10 @@ public static class SpellTargetingChecks
             Check(target() == 3, "Never select a marker behind the camera.");
             presenter.Tick(1, 1);
             refresh();
-            Check(target() == 0, "Lost tracking clears targeting.");
-            Check(!displays[2].transform.Find("TargetIndicator").gameObject.activeSelf, "Lost target hides !.");
+            Check(target() == 3, "Lost tracking retains targeting at the last known position.");
+            Check(displays[2].transform.Find("TargetIndicator").gameObject.activeSelf, "Retained target keeps ! visible.");
+            presenter.Reset(); refresh();
+            Check(target() == 0, "A full tracking reset clears stored targets.");
             Check(!system.TryCastSpell("Fireball"), "Fireball without a target is blocked.");
 
             presenter.Observe(1, new Pose(new Vector3(0, 0, 2), Quaternion.identity), 2);

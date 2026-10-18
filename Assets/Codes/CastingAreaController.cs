@@ -13,6 +13,7 @@ public class GestureRecognizedEvent : UnityEngine.Events.UnityEvent<string, floa
 public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
 {
     [SerializeField] private float recognitionDelay = 0.55f;
+    [SerializeField] private float numberRecognitionDelay = 0.9f;
     [SerializeField, Range(0f, 1f)] private float minimumConfidence = 0.8f;
     [SerializeField, Min(1f)] private float minimumNumberPathLength = 30f;
     [SerializeField] private GestureRecognizedEvent onGestureRecognized = new GestureRecognizedEvent();
@@ -287,7 +288,7 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
 
     private IEnumerator RecognizeAfterDelay()
     {
-        yield return new WaitForSecondsRealtime(recognitionDelay);
+        yield return new WaitForSecondsRealtime(IsSelectingNumber ? numberRecognitionDelay : recognitionDelay);
         recognitionCoroutine = null;
         // Signing is submitted explicitly with Done, never by an idle timer.
         if (IsSigning) yield break;

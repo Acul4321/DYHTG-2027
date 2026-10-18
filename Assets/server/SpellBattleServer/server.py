@@ -100,7 +100,8 @@ class LobbyServer:
 
     def public_player(self, aruconum):
         player = self.players[aruconum]
-        return {'aruconum': aruconum, 'signature': player['signature'], 'hp': player['hp']}
+        return {'aruconum': aruconum, 'signature': player['signature'], 'hp': player['hp'],
+                'deaths': player['deaths']}
 
     def send_snapshot(self, aruconum, destination, include_interval=False):
         fields = {'revision': self.revision, 'aruconum': aruconum,
@@ -119,7 +120,8 @@ class LobbyServer:
 
     def send_health_updated(self, aruconum):
         self.broadcast(MessageId.UPDATE_HEALTH, revision=self.revision,
-                       aruconum=aruconum, hp=self.players[aruconum]['hp'])
+                       aruconum=aruconum, hp=self.players[aruconum]['hp'],
+                       deaths=self.players[aruconum]['deaths'])
 
     def send_removed(self, aruconum):
         self.broadcast(MessageId.REMOVED, revision=self.revision,
@@ -191,9 +193,10 @@ class LobbyServer:
         is_new = aruconum not in self.players
         changed = is_new or self.players[aruconum]['signature'] != signature
         hp = 100 if is_new else self.players[aruconum]['hp']
+        deaths = 0 if is_new else self.players[aruconum]['deaths']
         session = object() if is_new else self.players[aruconum]['session']
         defense = ('', 0, 0) if is_new else self.players[aruconum]['defense']
-        self.players[aruconum] = {'signature': list(signature), 'hp': hp, 'address': sender,
+        self.players[aruconum] = {'signature': list(signature), 'hp': hp, 'deaths': deaths, 'address': sender,
                                    'last_seen': time.monotonic(), 'session': session, 'defense': defense}
         if changed:
             self.revision += 1
@@ -270,7 +273,11 @@ class LobbyServer:
             reflected = hit.damage // 2 if defense == 'Reflect' else 0
             # Keep total damage conserved for odd amounts: the defender takes the extra point.
             hp = max(0, player['hp'] - (hit.damage - reflected))
-            if hp != player['hp']:
+            died = hp == 0
+            if died:
+                player['deaths'] += 1
+                hp = 100
+            if died or hp != player['hp']:
                 player['hp'] = hp
                 self.revision += 1
                 self.send_health_updated(hit.target)
