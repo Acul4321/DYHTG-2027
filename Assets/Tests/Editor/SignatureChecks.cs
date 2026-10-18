@@ -129,19 +129,19 @@ public static class SignatureChecks
             pointer.position = new Vector2(130, 90); controller.OnPointerUp(pointer);
             int firstCount = Get<List<Point>>(controller, "points").Count;
             Check(firstCount >= 2 && !player.HasSignature, "Releasing a signature stroke must keep it unsubmitted.");
-            Check(Get<Coroutine>(controller, "recognitionCoroutine") == null, "Signature strokes must not start idle recognition.");
+            Check(area.transform.Find("SignatureControls") == null, "Signing must not create Clear or Done buttons.");
             pointer.position = new Vector2(200, 80); controller.OnPointerDown(pointer);
             pointer.position = new Vector2(260, 110); controller.OnPointerUp(pointer);
             Check(Get<List<Point>>(controller, "points").Count > firstCount, "A later stroke must retain the first stroke.");
-            GameObject buttons = Get<GameObject>(controller, "signatureButtons");
-            buttons.transform.Find("Clear").GetComponent<Button>().onClick.Invoke();
-            Check(Get<List<Point>>(controller, "points").Count == 0, "Clear button must discard the entire signature.");
-            pointer.position = new Vector2(10, 40); controller.OnPointerDown(pointer);
-            pointer.position = new Vector2(130, 90); controller.OnPointerUp(pointer);
-            buttons.transform.Find("Done").GetComponent<Button>().onClick.Invoke();
-            Check(player.HasSignature && !buttons.activeSelf, "Done button must save the drawing and hide signature controls.");
+            var recognition = (System.Collections.IEnumerator)typeof(CastingAreaController)
+                .GetMethod("RecognizeAfterDelay", PrivateInstance).Invoke(controller, null);
+            recognition.MoveNext();
+            recognition.MoveNext();
+            Check(player.HasSignature, "Pausing after drawing must automatically save the signature.");
+            Check(Get<List<Point>>(controller, "points").Count == 0, "Submission must clear the drawing.");
             player.ReceiveNetworkMessage("{\"message_id\":199,\"aruconum\":1,\"code\":\"invalid_signature\"}");
-            Check(!player.HasSignature && buttons.activeSelf, "Server rejection must reopen signing.");
+            Check(!player.HasSignature && Get<Text>(controller, "statusText").text.Contains("sign your name again"),
+                "Server rejection must reopen signing.");
         }
         finally
         {

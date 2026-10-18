@@ -71,17 +71,12 @@ public static class ArucoNumberSelectionChecks
                     Check((int)numberField.GetValue(player) == expected,
                         $"Expected {expected} from {template.name}, got {numberField.GetValue(player)}.");
                     Check(Status(controller) == "Sign your name", "Number selection must prompt for a signature.");
-                    Check(Get<GameObject>(controller, "signatureButtons").activeSelf, "Signing controls must be visible.");
+                    Check(controller.transform.Find("SignatureControls") == null, "Signing must not create buttons.");
                     controller.ConfirmSignature();
-                    Check(!player.HasSignature, "Done must reject a blank signature.");
+                    Check(!player.HasSignature, "A blank signature must be rejected.");
                     Draw(controller, ReadPoints(template.text));
-                    Check(!player.HasSignature, "Pausing must not submit a signature.");
-                    controller.ClearSignature();
-                    Check(Get<List<Point>>(controller, "points").Count == 0, "Clear must reset the drawing.");
-                    Get<List<Point>>(controller, "points").AddRange(ReadPoints(template.text));
-                    controller.ConfirmSignature();
-                    Check(player.HasSignature && Status(controller).Contains("Draw a spell"), "Done must save the signature then enable spells.");
-                    Check(!Get<GameObject>(controller, "signatureButtons").activeSelf, "Signing controls must hide for spells.");
+                    Check(player.HasSignature && Status(controller).Contains("Draw a spell"), "Pausing must save the signature then enable spells.");
+                    Check(Get<List<Point>>(controller, "points").Count == 0, "Submitting must clear the drawing.");
                     Draw(controller, new List<Point> { new Point(1, 1, 1) });
                     Check((int)numberField.GetValue(player) == expected, "Later drawing must preserve the chosen number.");
                 });

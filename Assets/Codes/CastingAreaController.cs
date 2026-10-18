@@ -29,7 +29,6 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
     private bool isDrawing;
     private bool hasRecognized;
     private PlayerSystem playerSystem;
-    private GameObject signatureButtons;
 
     public GestureRecognizedEvent OnGestureRecognized => onGestureRecognized;
 
@@ -64,7 +63,6 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
         }
         isDrawing = false;
         ClearGesture();
-        UpdateSignatureControls();
         statusText.text = code == "aruconum_in_use"
             ? "Number already taken - draw another: 1, 2, 3, or 4"
             : "Signature not accepted - sign your name again";
@@ -83,7 +81,6 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
         LoadTrainingGestures();
         CreateDrawingSurface();
         CreateStatusText();
-        CreateSignatureControls();
     }
 
     public void OnPointerDown(PointerEventData eventData)
@@ -117,13 +114,10 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
 
         AddPoint(eventData);
         isDrawing = false;
-        if (IsSigning)
-        {
-            statusText.text = "Sign your name - press Done when finished";
-            return;
-        }
         recognitionCoroutine = StartCoroutine(RecognizeAfterDelay());
-        statusText.text = "Release complete - continue drawing or pause to recognize";
+        statusText.text = IsSigning
+            ? "Continue signing or pause to finish"
+            : "Release complete - continue drawing or pause to recognize";
     }
 
     private void LoadTrainingGestures()
@@ -213,52 +207,6 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
         trail.AddPoint(localPoint, startsStroke);
     }
 
-    private void CreateSignatureControls()
-    {
-        signatureButtons = new GameObject("SignatureControls", typeof(RectTransform));
-        var rect = (RectTransform)signatureButtons.transform;
-        rect.SetParent(drawingArea, false);
-        rect.anchorMin = rect.anchorMax = new Vector2(1, 0);
-        rect.pivot = new Vector2(1, 0);
-        rect.anchoredPosition = new Vector2(-12, 12);
-        rect.sizeDelta = new Vector2(212, 40);
-        CreateSignatureButton("Clear", new Vector2(0, 0), ClearSignature);
-        CreateSignatureButton("Done", new Vector2(112, 0), ConfirmSignature);
-        UpdateSignatureControls();
-    }
-
-    private void CreateSignatureButton(string title, Vector2 position, UnityEngine.Events.UnityAction action)
-    {
-        var buttonObject = new GameObject(title, typeof(RectTransform), typeof(Image), typeof(Button));
-        var rect = (RectTransform)buttonObject.transform;
-        rect.SetParent(signatureButtons.transform, false);
-        rect.anchorMin = rect.anchorMax = Vector2.zero;
-        rect.pivot = Vector2.zero;
-        rect.anchoredPosition = position;
-        rect.sizeDelta = new Vector2(100, 40);
-        Image background = buttonObject.GetComponent<Image>();
-        background.color = new Color(0.1f, 0.18f, 0.28f, 1);
-        Button button = buttonObject.GetComponent<Button>();
-        button.targetGraphic = background;
-        button.onClick.AddListener(action);
-        var labelObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
-        var labelRect = (RectTransform)labelObject.transform;
-        labelRect.SetParent(rect, false);
-        labelRect.anchorMin = Vector2.zero; labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
-        Text label = labelObject.GetComponent<Text>();
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        label.fontSize = 18; label.color = Color.white;
-        label.alignment = TextAnchor.MiddleCenter; label.text = title;
-        label.raycastTarget = false;
-    }
-
-    private void UpdateSignatureControls()
-    {
-        if (signatureButtons != null) signatureButtons.SetActive(IsSigning);
-        if (trail != null) trail.rectTransform.offsetMin = new Vector2(0, IsSigning ? 60 : 0);
-    }
-
     public void ClearSignature()
     {
         if (!IsSigning) return;
@@ -272,17 +220,18 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
         if (!IsSigning || isDrawing) return;
         if (PathLength(points) < minimumNumberPathLength)
         {
-            statusText.text = "Sign your name before pressing Done";
+            ClearGesture();
+            statusText.text = "Draw a longer signature - sign your name again";
             return;
         }
         int[] drawing = SignatureData.FromPoints(points);
         if (drawing == null || !PlayerSystem.Instance.SubmitSignature(drawing))
         {
-            statusText.text = "Signature too complex - clear and sign again";
+            ClearGesture();
+            statusText.text = "Signature too complex - sign your name again";
             return;
         }
         ClearGesture();
-        UpdateSignatureControls();
         statusText.text = "Signature saved. Draw a spell gesture";
     }
 
@@ -290,8 +239,11 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
     {
         yield return new WaitForSecondsRealtime(IsSelectingNumber ? numberRecognitionDelay : recognitionDelay);
         recognitionCoroutine = null;
-        // Signing is submitted explicitly with Done, never by an idle timer.
-        if (IsSigning) yield break;
+        if (IsSigning)
+        {
+            ConfirmSignature();
+            yield break;
+        }
         bool selectingNumber = IsSelectingNumber;
         List<Gesture> activeTrainingSet = selectingNumber ? digitTrainingSet : trainingSet;
 
@@ -333,7 +285,6 @@ public class CastingAreaController : MonoBehaviour, IPointerDownHandler, IDragHa
             else
             {
                 PlayerSystem.Instance.SelectArucoNumber(number);
-                UpdateSignatureControls();
                 statusText.text = DrawingPrompt;
                 Debug.Log($"[Gesture] Selected aruconum {number}, confidence {result.Score:P0}.", this);
             }
